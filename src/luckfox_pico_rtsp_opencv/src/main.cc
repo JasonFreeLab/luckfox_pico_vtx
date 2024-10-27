@@ -98,6 +98,8 @@ int main(int argc, char *argv[]) {
 	// venc init
 	RK_CODEC_ID_E enCodecType = RK_VIDEO_ID_AVC;
 	venc_init(0, width, height, enCodecType);
+
+	vi_vtx_socket_init();
 	
 	while(1)
 	{	
