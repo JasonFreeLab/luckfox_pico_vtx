@@ -1,4 +1,4 @@
-LUCKFOX_SDK_PATH ?= /home/jc/luckfox-pico
+LUCKFOX_SDK_PATH ?= ~/luckfox-pico
 
 ARCH := arm
 

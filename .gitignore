@@ -1,0 +1,8 @@
+# VS Code Settings
+.vscode/
+
+build/
+
+install/
+
+src/rtl8812cu/rtl8812cu_monitor/

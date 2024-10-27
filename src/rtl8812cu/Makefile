@@ -35,7 +35,11 @@ clean: $(objects_clean)
 .PHONY: $(objects) $(objects_clean)
 
 $(objects):
+	sed -i "s/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g" $@/Makefile && \
+	sed -i "s/CONFIG_PLATFORM_ARM_RK1106 = n/CONFIG_PLATFORM_ARM_RK1106 = y/g" $@/Makefile && \
 	make -C $@ ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) KSRC=$(KDIR) -j16
 
 $(objects_clean):
 	make -C $(patsubst %_clean,%,$@) clean
+	sed -i "s/CONFIG_PLATFORM_I386_PC = n/CONFIG_PLATFORM_I386_PC = y/g" $(patsubst %_clean,%,$@)/Makefile && \
+	sed -i "s/CONFIG_PLATFORM_ARM_RK1106 = y/CONFIG_PLATFORM_ARM_RK1106 = n/g" $(patsubst %_clean,%,$@)/Makefile
