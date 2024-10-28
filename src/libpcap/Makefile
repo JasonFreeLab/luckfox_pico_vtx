@@ -15,9 +15,6 @@ PKG_CONFIG_PATH := $(LIBNL_DIR)/lib/pkgconfig
 
 INSTALL_DIR := $(INSTALL_DIR)/usr/lib
 
-HOST := $(HOST)
-CROSS_COMPILE := $(HOST)-
-
 MODULE_SRC := libpcap-1.10.5
 MODULE := libpcap.so.1.10.5
 MODULE_PATH := $(LOCAL_PREFIX)/lib/libpcap.so.1.10.5

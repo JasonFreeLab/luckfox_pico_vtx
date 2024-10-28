@@ -12,7 +12,7 @@ objects_clean := $(addsuffix _clean,$(objects))
 
 INSTALL_DIR := $(INSTALL_DIR)/usr/bin
 
-MODULE_PATH := $(objects)/luckfox_pico_rtsp_opencv
+MODULE_PATH := $(OUT_DIR)/src/luckfox_pico_rtsp_opencv/_install/luckfox_pico_rtsp_opencv
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   rules

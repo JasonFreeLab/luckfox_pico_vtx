@@ -12,9 +12,6 @@ LOCAL_PREFIX :=  $(BUILD_DIR)/_install
 
 INSTALL_DIR := $(INSTALL_DIR)/usr/lib
 
-HOST := $(HOST)
-CROSS_COMPILE := $(HOST)-
-
 MODULE_SRC := libnl-3.5.0
 MODULE := libnl-3.so.200.26.0 \
 	libnl-3.so.200 \

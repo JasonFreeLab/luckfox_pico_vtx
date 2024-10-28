@@ -12,9 +12,6 @@ LOCAL_PREFIX := $(BUILD_DIR)/_install
 
 INSTALL_DIR := $(INSTALL_DIR)/usr/lib
 
-HOST := $(HOST)
-CROSS_COMPILE := $(HOST)-
-
 MODULE_SRC := libsodium-1.0.20-RELEASE
 MODULE := libsodium.so.26.2.0
 MODULE_PATH := $(LOCAL_PREFIX)/lib/libsodium.so.26.2.0
@@ -52,7 +49,7 @@ uninstall: $(UNINSTALL_MODULES)
 	cd $(BUILD_DIR)/$(patsubst %_build,%,$@) && \
 	./autogen.sh -s && \
 	./configure --host=$(HOST) \
-	CC=$(CROSS_COMPILE)gcc \
+	CC=$(CMAKE_C_COMPILER) \
 	--prefix=$(LOCAL_PREFIX) && \
 	make -j16 && \
 	make install && \

@@ -24,7 +24,7 @@ all: $(objects)
 
 clean: $(objects_clean)
 	@rm -rf $(OUT_DIR)
-	@rm -rf $(INSTALL_DIR)
+#	@rm -rf $(INSTALL_DIR)
 
 #==================================================================
 #                          modules

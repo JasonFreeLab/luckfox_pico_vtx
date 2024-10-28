@@ -14,9 +14,6 @@ LIBPCAP_DIR := $(OUT_DIR)/src/libpcap/_install
 
 INSTALL_DIR := $(INSTALL_DIR)/usr/bin
 
-HOST := $(HOST)
-CROSS_COMPILE := $(HOST)-
-
 MODULE_SRC := wfb-ng-wfb-ng-24.08.2
 MODULE := wfb_rx wfb_tx wfb_keygen wfb_tx_cmd
 MODULE_PATH := $(BUILD_DIR)/$(MODULE_SRC)/wfb_rx \
@@ -59,8 +56,8 @@ uninstall: $(UNINSTALL_MODULES)
 	patch -Np1 -i ../wfb-ng-wfb-ng-24.08.2.patch && \
 	make all_bin -j16 \
 		ARCH=$(CFG_HI_CPU_ARCH) \
-		CC=$(CROSS_COMPILE)gcc \
-		CXX=$(CROSS_COMPILE)g++ \
+		CC=$(CMAKE_C_COMPILER) \
+		CXX=$(CMAKE_CXX_COMPILER) \
 		CFLAGS+="-I$(LIBNL_DIR)/include/libnl3 \
 			-I$(LIBPCAP_DIR)/include \
 			-I$(LIBSODIUM_DIR)/include" \

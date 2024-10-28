@@ -32,6 +32,8 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include "vtx_socket.h"
+
 int main(int argc, char *argv[]) {
   system("RkLunch-stop.sh");
   RK_S32 s32Ret = 0; 
