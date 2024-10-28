@@ -7,7 +7,7 @@ include $(PROJECT_DIR)/base.mak
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   variable
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-objects := rtl8812cu libnl libpcap libsodium wfb-ng luckfox_pico_rtsp_opencv
+objects := wifi libnl libpcap libsodium wfb-ng luckfox_pico_rtsp_opencv
 objects_clean := $(addsuffix _clean,$(objects))
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
