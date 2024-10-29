@@ -21,13 +21,18 @@ MODULE_PATH := $(OUT_DIR)/src/luckfox_pico_rtsp_opencv/_install/luckfox_pico_rts
 #==================================================================
 #                          all
 #==================================================================
-.PHONY: all clean
+.PHONY: all clean  install uninstall
 
 all: $(objects)
 	@test -d $(INSTALL_DIR) || mkdir -p $(INSTALL_DIR)
 	@cp -v $(MODULE_PATH) $(INSTALL_DIR)/
 
 clean: $(objects_clean)
+
+install: all
+
+uninstall: 
+	@rm -rf $(INSTALL_DIR)
 
 #==================================================================
 #                          modules

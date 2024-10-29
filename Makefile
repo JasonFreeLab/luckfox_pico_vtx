@@ -10,7 +10,7 @@ include base.mak
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 objects := src
 objects_clean := $(addsuffix _clean,$(objects))
-
+objects_uninstall := $(addsuffix _uninstall,$(objects))
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   rules
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -24,7 +24,11 @@ all: $(objects)
 
 clean: $(objects_clean)
 	@rm -rf $(OUT_DIR)
-#	@rm -rf $(INSTALL_DIR)
+
+install: all
+
+uninstall: $(objects_uninstall)
+	@rm -rf $(INSTALL_DIR)
 
 #==================================================================
 #                          modules
@@ -36,3 +40,6 @@ $(objects):
 
 $(objects_clean):
 	make -C $(patsubst %_clean,%,$@) clean
+
+$(objects_uninstall):
+	make -C $(patsubst %_uninstall,%,$@) uninstall
