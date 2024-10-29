@@ -9,8 +9,12 @@ CMAKE_C_COMPILER := $(CROSS_COMPILE)gcc
 CMAKE_CXX_COMPILER := $(CROSS_COMPILE)g++
 
 KDIR := $(LUCKFOX_SDK_PATH)/sysdrv/source/objs_kernel
-# KDIR := $(LUCKFOX_SDK_PATH)/sysdrv/source/kernel/
+# KDIR := $(LUCKFOX_SDK_PATH)/sysdrv/source/kernel
 
 
 OUT_DIR := $(PROJECT_DIR)/build
-INSTALL_DIR := $(PROJECT_DIR)/install/
+INSTALL_DIR := $(PROJECT_DIR)/install
+
+# CFG_WIFI_SUPPORT_RTL8812AU = y
+CFG_WIFI_SUPPORT_RTL8812CU = y
+# CFG_WIFI_SUPPORT_RTL8812EU = y

@@ -1,3 +1,9 @@
 [submodule "src/wifi/rtl8812cu_monitor"]
 	path = src/wifi/rtl8812cu_monitor
 	url = ../rtl8812cu.git
+[submodule "src/wifi/rtl8812au_monitor"]
+	path = src/wifi/rtl8812au_monitor
+	url = ../rtl8812au.git
+[submodule "src/wifi/rtl8812eu_monitor"]
+	path = src/wifi/rtl8812eu_monitor
+	url = ../rtl8812eu.git
