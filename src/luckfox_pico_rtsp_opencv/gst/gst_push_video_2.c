@@ -4,6 +4,7 @@
 #include <glib.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 // 定义会话数据结构，包含 sessionNum 和输入元素信息
 typedef struct _SessionData {

@@ -220,4 +220,6 @@
 
 ```Bash
 gcc -o gst_push_h265_video gstreamer_h265_push.c $(pkg-config --cflags --libs gstreamer-1.0 gstreamer-app-1.0)
+
+/home/jason/luckfox-pico/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/bin/arm-rockchip830-linux-uclibcgnueabihf-gcc -o gst_push_video_2 gst_push_video_2.c -I/home/jason/luckfox-pico/sysdrv/source/buildroot/buildroot-2023.02.6/output/host/arm-buildroot-linux-uclibcgnueabihf/sysroot/usr/lib/glib-2.0/include -I/home/jason/luckfox-pico/sysdrv/source/buildroot/buildroot-2023.02.6/output/host/arm-buildroot-linux-uclibcgnueabihf/sysroot/usr/include/gstreamer-1.0 -I/home/jason/luckfox-pico/sysdrv/source/buildroot/buildroot-2023.02.6/output/host/arm-buildroot-linux-uclibcgnueabihf/sysroot/usr/include/glib-2.0 -L/home/jason/luckfox-pico/sysdrv/source/buildroot/buildroot-2023.02.6/output/host/arm-buildroot-linux-uclibcgnueabihf/sysroot/usr/lib -L/home/jason/luckfox-pico/sysdrv/source/buildroot/buildroot-2023.02.6/output/host/arm-buildroot-linux-uclibcgnueabihf/sysroot/usr/lib/gstreamer-1.0 -L/home/jason/luckfox-pico/sysdrv/source/buildroot/buildroot-2023.02.6/output/host/arm-buildroot-linux-uclibcgnueabihf/sysroot/usr/lib/glib-2.0 -lgstreamer-1.0 -lm -ldl -lgstapp-1.0 -lglib-2.0 -pthread -liconv -lintl -lgobject-2.0 -lgmodule-2.0 -lgstbase-1.0 -lpcre -lffi
 ```
