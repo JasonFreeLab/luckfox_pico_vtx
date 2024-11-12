@@ -1,15 +1,19 @@
 #===============================================================================
 # export variables
 #===============================================================================
-PROJECT_DIR := $(shell cd $(CURDIR)/.. && /bin/pwd)
+PROJECT_DIR := $(shell cd $(CURDIR)/../.. && /bin/pwd)
 include $(PROJECT_DIR)/base.mak
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   variable
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-objects := wifi wfb-ng luckfox_pico_rtp
+objects := src
 objects_clean := $(addsuffix _clean,$(objects))
-objects_uninstall := $(addsuffix _uninstall,$(objects))
+
+INSTALL_DIR := $(INSTALL_DIR)/vtx/bin
+
+MODULE_PATH := $(OUT_DIR)/src/luckfox_pico_rtp/_install/luckfox_pico_rtp
+
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   rules
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -17,15 +21,18 @@ objects_uninstall := $(addsuffix _uninstall,$(objects))
 #==================================================================
 #                          all
 #==================================================================
-.PHONY: all clean
+.PHONY: all clean  install uninstall
 
 all: $(objects)
+	@test -d $(INSTALL_DIR) || mkdir -p $(INSTALL_DIR)
+	@cp -v $(MODULE_PATH) $(INSTALL_DIR)/
 
 clean: $(objects_clean)
 
 install: all
 
-uninstall: $(objects_uninstall)
+uninstall: 
+	@rm -rf $(INSTALL_DIR)
 
 #==================================================================
 #                          modules
@@ -33,10 +40,7 @@ uninstall: $(objects_uninstall)
 .PHONY: $(objects) $(objects_clean)
 
 $(objects):
-	make -C $@ all
+	make -C $@ -j16 CC=$(CMAKE_C_COMPILER) CXX=$(CMAKE_CXX_COMPILER)
 
 $(objects_clean):
 	make -C $(patsubst %_clean,%,$@) clean
-
-$(objects_uninstall):
-	make -C $(patsubst %_uninstall,%,$@) uninstall

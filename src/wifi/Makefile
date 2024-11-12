@@ -24,7 +24,7 @@ endif
 
 objects_clean := $(addsuffix _clean,$(objects))
 
-INSTALL_DIR := $(INSTALL_DIR)/usr/kmod
+INSTALL_DIR := $(INSTALL_DIR)/vtx/kmod
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   rules

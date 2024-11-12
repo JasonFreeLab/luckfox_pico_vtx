@@ -1,4 +1,4 @@
-LUCKFOX_SDK_PATH ?= ~/luckfox-pico
+LUCKFOX_SDK_PATH ?= $(HOME)/luckfox-pico
 
 ARCH := arm
 
@@ -11,6 +11,8 @@ CMAKE_CXX_COMPILER := $(CROSS_COMPILE)g++
 KDIR := $(LUCKFOX_SDK_PATH)/sysdrv/source/objs_kernel
 # KDIR := $(LUCKFOX_SDK_PATH)/sysdrv/source/kernel
 
+BUILDROOT_SYSROOT := $(LUCKFOX_SDK_PATH)/sysdrv/source/buildroot/buildroot-2023.02.6/output/host/arm-buildroot-linux-uclibcgnueabihf/sysroot
+LUCKFOX_MEDIA_PATH := $(LUCKFOX_SDK_PATH)/media
 
 OUT_DIR := $(PROJECT_DIR)/build
 INSTALL_DIR := $(PROJECT_DIR)/install
