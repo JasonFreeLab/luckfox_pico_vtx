@@ -1,83 +1,57 @@
-#include <glib.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+
+#include <glib.h>
+
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
+#include <gst/app/gstappsrc.h>
+
+
+// 定义gst参数的结构体
+typedef struct _Gst_Element {
+    GstElement *appsrc;
+    GstElement *encoder;
+    GstElement *udpsink;
+} Gst_Element;
 
 // 定义视频参数的结构体
-typedef struct _VideoParameters {
-    int width;         // 视频宽度
-    int height;        // 视频高度
-    int fps;           // 帧率
-    const char* codec; // 编码格式，如 "video/x-h265"
-} VideoParameters;
-
-// 定义编码器参数的结构体
-typedef struct _EncoderParameters {
-    const char* type;  // 编码器类型，例如 "rtph265pay"
-    const char* codec; // 对应的编码格式，例如 "video/x-h265"
-} EncoderParameters;
-
-// 定义输入线程的结构体
-typedef struct _InputThread {
-    volatile int run; // 控制线程的运行状态
-    GThread* thread;  // 线程句柄
-} InputThread;
-
-// 定义会话数据结构体
-typedef struct _SessionData {
-    int ref;                // 引用计数
-    guint sessionNum;      // 会话编号
-    GstElement *input;     // 输入元素，如 appsrc
-    GstElement *encoder;   // 编码器元素
-    GMutex mutex;          // 互斥锁，用于线程安全
-    GCond cond;            // 条件变量，用于线程同步
-    uint8_t *frameData;    // 存储视频帧数据的指针
-    guint frameSize;       // 当前帧的大小
-    guint64 pts;           // 当前帧的时间戳
-    int frameReady;        // 标志，表示帧是否准备好
-    int framesSent;        // 已发送的帧计数
-} SessionData;
+typedef struct _InputParameters {
+    const char* g_host;     // 目标主机
+    uint16_t g_port;        // 目标端口
+    uint16_t width;         // 视频宽度
+    uint16_t height;        // 视频高度
+    uint8_t fps;            // 帧率
+    const char* codec;      // 编码格式，如 "video/x-h265"
+    const char* type;       // 编码器类型，例如 "rtph265pay"
+    uint8_t* frameData;
+    guint frameSize;
+    guint64 pts;
+    guint framesSent;       // 已发送的帧计数
+    Gst_Element* gst_element;
+} InputParameters;
 
 // 日志记录函数
 void log_message(const char* message) {
-    printf("[%s] %s\n", g_get_current_time(), message);
+    printf("%s\n", message);
 }
 
-// 创建新的会话数据，并初始化
-static SessionData* session_new(guint sessionNum) {
-    SessionData* ret = g_new0(SessionData, 1);
-    ret->sessionNum = sessionNum;   // 设置会话编号
-    g_mutex_init(&ret->mutex);       // 初始化互斥锁
-    g_cond_init(&ret->cond);         // 初始化条件变量
-    return ret;                     // 返回新的会话数据
-}
-
-// 管理帧数据并推送到 GStreamer
-static gboolean push_frame_data(SessionData* session, uint8_t* frameData, guint frameSize, guint64 pts) {
-    g_mutex_lock(&session->mutex); // 锁定互斥锁
-
-    // 释放旧的帧数据
-    if (session->frameData) {
-        free(session->frameData);
+// 推送帧数据到 GStreamer
+static gboolean push_frame_data(InputParameters* params) {
+    // 推送数据到 GStreamer 流水线
+    GstBuffer* buffer = gst_buffer_new_and_alloc(params->frameSize);
+    if (!buffer) {
+        log_message("创建新的 GstBuffer 失败");
+        return FALSE; // 失败
     }
 
-    // 设置新的帧数据
-    session->frameData = frameData;
-    session->frameSize = frameSize;
-    session->pts = pts;
-    session->frameReady = 1; // 标记帧已准备好
+    gst_buffer_fill(buffer, 0, params->frameData, params->frameSize); // 填充帧数据
+    GST_BUFFER_DURATION(buffer) = gst_util_uint64_scale_int(1, GST_SECOND, params->fps); // 设置帧率
+    GST_BUFFER_PTS(buffer) = params->pts; // 设置PTS
 
-    g_cond_signal(&session->cond); // 唤醒等待的线程
-    g_mutex_unlock(&session->mutex); // 解锁互斥锁
-
-    // 推送数据到 GStreamer 流水线
-    GstBuffer* buffer = gst_buffer_new_and_alloc(session->frameSize);
-    gst_buffer_fill(buffer, 0, session->frameData, session->frameSize); // 填充帧数据
-    GST_BUFFER_DURATION(buffer) = gst_util_uint64_scale_int(1, GST_SECOND, 30); // 固定的帧率
-    GST_BUFFER_PTS(buffer) = session->pts; // 设置PTS
-
-    GstFlowReturn ret = gst_app_src_push_buffer(GST_APP_SRC(session->input), buffer);
+    GstFlowReturn ret = gst_app_src_push_buffer(GST_APP_SRC(params->gst_element->appsrc), buffer);
     gst_buffer_unref(buffer); // 释放 GstBuffer
 
     if (ret != GST_FLOW_OK) {
@@ -85,121 +59,133 @@ static gboolean push_frame_data(SessionData* session, uint8_t* frameData, guint 
         return FALSE; // 推送失败
     }
     
-    session->framesSent++; // 发送成功，帧计数加一
+    params->framesSent++; // 发送成功，帧计数加一
     return TRUE; // 推送成功
 }
 
-// 创建视频会话
-static SessionData* make_video_session(VideoParameters* params, EncoderParameters* encoderParams) {
-    GstElement* appsrc = gst_element_factory_make("appsrc", NULL);
-    if (!appsrc) {
-        log_message("创建 appsrc 元素失败");
-        return NULL;
+// 初始化 GStreamer 流水线
+void gstreamer_push_init(InputParameters* params) {
+    gst_init(NULL, NULL); // 初始化 GStreamer 库
+
+    // 强制转换为 Gst_Element*，以避免编译器警告
+    params->gst_element = (Gst_Element*)g_malloc0(sizeof(Gst_Element)); // 分配 Gst_Element 内存
+    
+    params->gst_element->appsrc = gst_element_factory_make("appsrc", NULL); // 创建 appsrc 元素
+    if (!params->gst_element->appsrc) {
+        log_message("未能创建 appsrc 元素");
+        return;
     }
 
-    GstElement* encoder = gst_element_factory_make(encoderParams->type, NULL);
-    if (!encoder) {
-        log_message("创建编码器元素失败");
-        gst_object_unref(appsrc);
-        return NULL;
+    params->gst_element->encoder = gst_element_factory_make(params->type, NULL); // 创建编码器
+    if (!params->gst_element->encoder) {
+        log_message("未能创建编码器");
+        return;
     }
 
-    GstBin* videoBin = GST_BIN(gst_bin_new(NULL));
+    params->gst_element->udpsink = gst_element_factory_make("udpsink", NULL); // 创建 udpsink 元素
+    if (!params->gst_element->udpsink) {
+        log_message("未能创建 udpsink 元素");
+        return;
+    }
+
+    // 设置 udpsink 的主机和端口
+    g_object_set(params->gst_element->udpsink, "host", params->g_host, "port", params->g_port, NULL); // 设置目标主机和端口
+
+    GstBin* videoBin = GST_BIN(gst_bin_new("video-bin")); // 创建一个新的 GstBin 容器
+    if (!videoBin) {
+        log_message("创建 GstBin 失败");
+        return; // 返回错误
+    }
+
     GstCaps* caps = gst_caps_new_simple(params->codec,
         "width", G_TYPE_INT, params->width,
         "height", G_TYPE_INT, params->height,
         "framerate", GST_TYPE_FRACTION, params->fps, 1,
         NULL);
     
-    g_object_set(appsrc, "caps", caps, NULL);
+    g_object_set(params->gst_element->appsrc, "caps", caps, NULL); // 设置 appsrc 的能力
     gst_caps_unref(caps); // 释放 caps 内存
-    gst_bin_add_many(videoBin, appsrc, encoder, NULL);
-    
-    if (!gst_element_link(appsrc, encoder)) { // 链接 appsrc 和编码器
-        log_message("链接 appsrc 和编码器失败");
+
+    // 将元素添加到视频 bin 中
+    gst_bin_add_many(videoBin, params->gst_element->appsrc, params->gst_element->encoder, params->gst_element->udpsink, NULL);
+
+    // 链接元素
+    if (!gst_element_link(params->gst_element->appsrc, params->gst_element->encoder) ||
+        !gst_element_link(params->gst_element->encoder, params->gst_element->udpsink)) {
+        log_message("链接 appsrc 和编码器，或编码器和 udpsink 失败");
         gst_object_unref(videoBin);
-        return NULL;
-    }
-
-    SessionData* session = session_new(0);
-    session->input = GST_ELEMENT(videoBin);
-    session->encoder = encoder;
-
-    return session;
-}
-
-// 初始化 GStreamer 会话
-void gstreamer_push_init(VideoParameters* params, EncoderParameters* encoderParams, InputThread* inputThread) {
-    gst_init(NULL, NULL); // 初始化 GStreamer 库
-    SessionData* videoSession = make_video_session(params, encoderParams); // 创建视频会话
-    if (!videoSession) {
-        log_message("初始化 GStreamer 会话失败");
         return;
     }
 
-    inputThread->run = 1; 
-    inputThread->thread = g_thread_new("PushVideoFrames", (GThreadFunc)push_video_frames, videoSession);
+    // 启动 GStreamer 管道
+    GstElement *pipeline = GST_ELEMENT(videoBin);
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    
     log_message("GStreamer 会话初始化成功");
 }
 
-// 处理视频帧，推送到 GStreamer
-void push_video_frames(SessionData* session) {
-    while (session->run) {
-        g_mutex_lock(&session->mutex);
-
-        // 等待帧数据
-        while (!session->frameReady) {
-            g_cond_wait(&session->cond, &session->mutex);
-        }
-
-        // 获取帧数据并推送
-        if (session->frameData != NULL) {
-            gstreamer_send_frame(session, session->frameData, session->frameSize, session->pts);
-        }
-
-        session->frameReady = 0; // 重置帧准备状态
-        free(session->frameData); // 释放帧数据
-        session->frameData = NULL; // 重置帧数据指针
-        g_mutex_unlock(&session->mutex);
-    }
-}
-
 // 去初始化 GStreamer 会话
-void gstreamer_push_deinit(SessionData* session, InputThread* inputThread) {
-    inputThread->run = 0; // 设置线程状态为停止
-    g_cond_signal(&session->cond); // 唤醒等待的线程
-    g_thread_join(inputThread->thread); // 等待线程结束
+void gstreamer_push_deinit(InputParameters* params) {
+    // 停止 GStreamer 管道
+    GstElement *pipeline = GST_ELEMENT(gst_object_get_parent(GST_OBJECT(params->gst_element->appsrc)));
+    if (pipeline) {
+        gst_element_set_state(pipeline, GST_STATE_NULL); 
+        gst_object_unref(pipeline);
+    }
 
-    gst_app_src_end_of_stream(GST_APP_SRC(session->input)); 
-    session_unref(session); // 释放会话数据
+    // 清理 Gst_Element
+    if (params->gst_element) {
+        g_free(params->gst_element);
+    }
+
     log_message("GStreamer 会话去初始化成功");
 }
 
 // 主函数
-int main() {
-    VideoParameters params = { .width = 640, .height = 480, .fps = 30, .codec = "video/x-h265" };
-    EncoderParameters encoderParams = { .type = "rtph265pay", .codec = "video/x-h265" };
+int main_int() {
+    InputParameters params = {
+        .g_host = "127.0.0.1", // 目标主机
+        .g_port = 5000,        // 目标端口
+        .width = 1280,         // 视频宽度
+        .height = 720,         // 视频高度
+        .fps = 30,             // 帧率
+        .codec = "video/x-h265",      // 编码格式
+        .type = "rtph265pay",       // 编码器类型
+        .frameData = NULL,           // 初始化为NULL，稍后分配
+        .frameSize = 1280 * 720 * 3, // 设置帧大小，假设为RGB格式
+        .pts = 0,                   // 初始化PTS
+        .framesSent = 0,            // 已发送的帧计数
+        .gst_element = NULL          // 初始化gst_element为NULL
+    };
 
-    static InputThread inputThread; 
-    static SessionData* videoSession = NULL;
+    // 注意！这里应有一个实际的帧数据格式判定
+    params.frameData = (uint8_t *)malloc(params.frameSize);
+    if (!params.frameData) {
+        log_message("分配帧数据失败");
+        return -1; // 处理分配失败
+    } 
 
-    gstreamer_push_init(&params, &encoderParams, &inputThread);
+    gstreamer_push_init(&params); // 初始化 GStreamer 流水线
+
+    // 处理并推送视频帧
+    guint64 frame_duration = 1000000 / params.fps; // 计算每帧间隔（微秒）
 
     for (int i = 0; i < 100; i++) {
-        uint8_t* frameData = (uint8_t*)malloc(params.width * params.height); // 创建帧数据
-        if (!frameData) {
-            log_message("分配帧数据失败");
-            break; // 处理内存分配失败
+        memset(params.frameData, i % 256, params.frameSize); // 填充帧数据
+        params.pts = gst_util_uint64_scale(i, GST_SECOND, params.fps); // 设置正确的 PTS
+        if (!push_frame_data(&params)) {
+            log_message("推送帧数据失败");
+            break;
         }
         
-        memset(frameData, i % 256, params.width * params.height); // 填充帧数据
-        push_frame_data(videoSession, frameData, params.width * params.height, g_get_monotonic_time()); // 设置当前帧数据
-        g_usleep(1000000 / params.fps); // 控制帧率
+        g_usleep(frame_duration); // 控制帧率
     }
 
-    int sentFrames = videoSession->framesSent; // 获取已发送的帧数
-    printf("已发送帧数: %d\n", sentFrames);
+    printf("已发送帧数: %d\n", params.framesSent); // 输出已发送的帧数
 
-    gstreamer_push_deinit(videoSession, &inputThread);
+    // 在这里释放帧数据
+    free(params.frameData);
+
+    gstreamer_push_deinit(&params); // 去初始化 GStreamer 会话
     return 0;
 }
