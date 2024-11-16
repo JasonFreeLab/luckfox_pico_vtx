@@ -34,9 +34,9 @@ _LDFLAGS := $(LDFLAGS) -L$(LUCKFOX_MEDIA_PATH)/out/lib \
 	-L$(BUILDROOT_SYSROOT)/usr/lib \
 	-L$(BUILDROOT_SYSROOT)/usr/lib/gstreamer-1.0 \
 	-L$(BUILDROOT_SYSROOT)/usr/lib/glib-2.0 \
-	-lrga -lsample_comm -lrockit -lrkaiq -lrockchip_mpp -lrtsp \
+	-lrga -lsample_comm -lrockit -lrkaiq -lrockchip_mpp \
 	-lgstreamer-1.0 -lm -ldl -lgstapp-1.0 -lglib-2.0 -pthread -liconv -lintl -lgobject-2.0 -lgmodule-2.0 -lgstbase-1.0 -lpcre -lffi
-
+ #-lrtsp
 SRCS := $(wildcard *.cc)
 OBJS := $(SRCS:.cc=.o)
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

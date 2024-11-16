@@ -52,6 +52,7 @@ uninstall:
 .PHONY: $(objects) $(objects_clean) $(MODULE)
 
 $(objects):
+	@echo -e "\033[32m""Build $@ ...""\033[00m"
 	sed -i "s/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g" $@/Makefile && \
 	sed -i "s/CONFIG_PLATFORM_ARM_RK1106 = n/CONFIG_PLATFORM_ARM_RK1106 = y/g" $@/Makefile && \
 	make -C $@ ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) KSRC=$(KDIR) USER_MODULE_NAME=$@ -j16

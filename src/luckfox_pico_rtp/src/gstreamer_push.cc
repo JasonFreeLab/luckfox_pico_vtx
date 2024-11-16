@@ -1,37 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
+#include "gstreamer_push.h"
 
-#include <glib.h>
-
-#include <gst/gst.h>
-#include <gst/app/gstappsink.h>
-#include <gst/app/gstappsrc.h>
-
-
-// 定义gst参数的结构体
-typedef struct _Gst_Element {
-    GstElement *appsrc;
-    GstElement *encoder;
-    GstElement *udpsink;
-} Gst_Element;
-
-// 定义视频参数的结构体
-typedef struct _InputParameters {
-    const char* g_host;     // 目标主机
-    uint16_t g_port;        // 目标端口
-    uint16_t width;         // 视频宽度
-    uint16_t height;        // 视频高度
-    uint8_t fps;            // 帧率
-    const char* codec;      // 编码格式，如 "video/x-h265"
-    const char* type;       // 编码器类型，例如 "rtph265pay"
-    uint8_t* frameData;
-    guint frameSize;
-    guint64 pts;
-    guint framesSent;       // 已发送的帧计数
-    Gst_Element* gst_element;
-} InputParameters;
 
 // 日志记录函数
 void log_message(const char* message) {
@@ -39,7 +7,7 @@ void log_message(const char* message) {
 }
 
 // 推送帧数据到 GStreamer
-static gboolean push_frame_data(InputParameters* params) {
+gboolean gstreamer_push_frame_data(InputParameters* params) {
     // 推送数据到 GStreamer 流水线
     GstBuffer* buffer = gst_buffer_new_and_alloc(params->frameSize);
     if (!buffer) {
@@ -141,7 +109,7 @@ void gstreamer_push_deinit(InputParameters* params) {
     log_message("GStreamer 会话去初始化成功");
 }
 
-// 主函数
+/* 主函数
 int main_int() {
     InputParameters params = {
         .g_host = "127.0.0.1", // 目标主机
@@ -189,3 +157,4 @@ int main_int() {
     gstreamer_push_deinit(&params); // 去初始化 GStreamer 会话
     return 0;
 }
+*/

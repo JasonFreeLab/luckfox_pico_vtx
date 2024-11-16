@@ -46,7 +46,7 @@ uninstall: $(UNINSTALL_MODULES)
 #                          modules LDFLAGS=-static 
 #==================================================================
 %_build: $(BUILD_DIR)
-	@echo -e "\033[31m""Build $(patsubst %_build,%,$@) ...""\033[00m"
+	@echo -e "\033[32m""Build $(patsubst %_build,%,$@) ...""\033[00m"
 	@test -d $(BUILD_DIR)/$(patsubst %_build,%,$@) \
 		|| tar -zxf $(patsubst %_build,%,$@).tar.gz -C $(BUILD_DIR)
 	cd $(BUILD_DIR)/$(patsubst %_build,%,$@) && \
