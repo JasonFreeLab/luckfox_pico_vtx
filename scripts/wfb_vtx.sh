@@ -29,4 +29,4 @@ iwlist wlan0 channel
 sleep 1
 
 #ffmpeg -re -stream_loop -1 -i 123.mp4 -vcodec copy -pkt_size 1300 -f h264 "udp://127.0.0.1:5602"
-./luckfox_pico_rtp
+./luckfox_pico_rtp -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1

@@ -8,7 +8,6 @@ include $(PROJECT_DIR)/base.mak
 #   variable
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 objects := wifi wfb-ng luckfox_pico_rtp
-# objects := luckfox_pico_rtp
 objects_clean := $(addsuffix _clean,$(objects))
 objects_uninstall := $(addsuffix _uninstall,$(objects))
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -26,7 +26,7 @@ iwlist wlan0 channel
 #cat /proc/net/rtl8812cu/wlan0/tx_power_idx
 
 ./wfb_rx -p 0 -u 5600 -K gs.key wlan0 &
-#sleep 1
+sleep 1
 
 #ffmpeg -re -stream_loop -1 -i 123.mp4 -vcodec copy -pkt_size 1300 -f h264 "udp://127.0.0.1:5602"
-#gst-launch-1.0 udpsrc port=5600 caps='application/x-rtp, media=(string)video, encoding-name=(string)H265' ! rtph265depay ! avdec_h265 ! autovideosink
+gst-launch-1.0 udpsrc port=5600 caps='application/x-rtp, media=(string)video, encoding-name=(string)H265' ! rtph265depay ! avdec_h265 ! autovideosink

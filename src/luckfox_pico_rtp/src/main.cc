@@ -18,16 +18,53 @@
 #include "luckfox_mpi.h"
 #include "gst_push.h"
 
-#define HOST_IP "127.0.0.1" // 目标主机IP
-#define HOST_PORT 5000		// 目标主机端口号
-
-#define VIDEO_WIDTH 1920  // 视频宽度
-#define VIDEO_HEIGHT 1080 // 视频高度
-#define VIDEO_FPS 120	  // 视频帧率
-#define VIDEO_ENCONDEC 1  // 视频编码方式0:H264, 1:H265
+#define DEFAULT_IP "127.0.0.1" // 默认主机IP
+#define DEFAULT_PORT 5000	   // 默认主机端口号
+#define DEFAULT_WIDTH 1920	   // 默认视频宽度
+#define DEFAULT_HEIGHT 1080	   // 默认视频高度
+#define DEFAULT_FPS 90		   // 默认视频帧率
+#define DEFAULT_ENCONDEC 1	   // 视频编码方式0:H264, 1:H265
 
 int main(int argc, char *argv[])
 {
+	const char *host_ip = DEFAULT_IP;
+	int host_port = DEFAULT_PORT;
+	int video_width = DEFAULT_WIDTH;
+	int video_height = DEFAULT_HEIGHT;
+	int video_fps = DEFAULT_FPS;
+	int video_encodec = DEFAULT_ENCONDEC;
+
+	// 解析命令行参数
+	int c;
+	while ((c = getopt(argc, argv, "i:p:w:h:f:e:")) != -1)
+	{
+		switch (c)
+		{
+		case 'i':
+			host_ip = optarg; // 设置主机IP
+			break;
+		case 'p':
+			host_port = atoi(optarg); // 设置主机端口号
+			break;
+		case 'w':
+			video_width = atoi(optarg); // 设置视频宽度
+			break;
+		case 'h':
+			video_height = atoi(optarg); // 设置视频高度
+			break;
+		case 'f':
+			video_fps = atoi(optarg); // 设置视频帧率
+			break;
+		case 'e':
+			video_encodec = atoi(optarg); // 设置视频编码方式
+			break;
+		default:
+			fprintf(stderr, "Usage: %s [-i host_ip] [-p host_port] [-w video_width] [-h video_height] [-f video_fps] [-e video_encodec(0:H264, 1:H265)]\n", argv[0]);
+			fprintf(stderr, "For example: ./%s -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1\n", argv[0]);
+			exit(EXIT_FAILURE);
+		}
+	}
+
 	system("RkLunch-stop.sh"); // 停止任何现有的RkLunch服务
 
 	// rkaiq初始化
@@ -47,10 +84,10 @@ int main(int argc, char *argv[])
 	// gst初始化
 	GstPushInitParameter_S gst_push_init_parameter;
 
-	gst_push_init_parameter.host_ip = (char *)HOST_IP;
-	gst_push_init_parameter.host_port = HOST_PORT;
-	gst_push_init_parameter.encodec_type = VIDEO_ENCONDEC ? EncondecType_E_H265 : EncondecType_E_H264;
-	gst_push_init_parameter.fps = VIDEO_FPS;
+	gst_push_init_parameter.host_ip = (char *)host_ip;
+	gst_push_init_parameter.host_port = host_port;
+	gst_push_init_parameter.encodec_type = video_encodec ? EncondecType_E_H265 : EncondecType_E_H264;
+	gst_push_init_parameter.fps = video_fps;
 	if (gst_push_init(&gst_push_init_parameter) != RK_SUCCESS)
 	{
 		RK_LOGE("gst push init fail!"); // 输出错误信息
@@ -59,11 +96,11 @@ int main(int argc, char *argv[])
 
 	// vi初始化
 	vi_dev_init();							   // 初始化视频输入设备
-	vi_chn_init(0, VIDEO_WIDTH, VIDEO_HEIGHT); // 初始化视频输入通道
+	vi_chn_init(0, video_width, video_height); // 初始化视频输入通道
 
 	// venc初始化
-	RK_CODEC_ID_E enCodecType = VIDEO_ENCONDEC ? RK_VIDEO_ID_HEVC : RK_VIDEO_ID_AVC; // 设置编码类型
-	venc_init(0, VIDEO_WIDTH, VIDEO_HEIGHT, enCodecType);							 // 初始化视频编码器
+	RK_CODEC_ID_E enCodecType = video_encodec ? RK_VIDEO_ID_HEVC : RK_VIDEO_ID_AVC; // 设置编码类型
+	venc_init(0, video_width, video_height, enCodecType);							// 初始化视频编码器
 
 	// 绑定vi到venc
 	MPP_CHN_S stSrcChn, stvencChn; // 声明源通道和编码通道结构
@@ -98,7 +135,7 @@ int main(int argc, char *argv[])
 			frame->size = stFrame.pstPack->u32Len;										  // 获取帧大小
 			frame->pts = stFrame.pstPack->u64PTS;										  // 获取PTS
 
-			gst_push_data(frame);
+			gst_push_data(frame); // 推送视频帧
 
 			printf("fps = %.2f\n", (float)1000000 / (float)(TEST_COMM_GetNowUs() - frame->pts)); // 输出当前帧率
 		}
