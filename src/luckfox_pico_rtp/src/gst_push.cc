@@ -1,51 +1,41 @@
 #include "gst_push.h"
 
 GstElement *pipeline, *appsrc, *parser, *rtp_payloader, *udpsink;
+guint64 fps_time = 0;
+GstBuffer *buffer;
+GstFlowReturn ret;
 
-// 获取H.265帧并将其推送到管道
-void gst_push_data(FrameData *frame)
+// 获取视频帧并将其推送到管道
+void gst_push_data(FrameData_S *frame)
 {
-    // 创建GStreamer的缓冲区并填充H.265帧数据
-    GstBuffer *buffer = gst_buffer_new_allocate(NULL, frame->size, NULL);
+    // 创建GStreamer的缓冲区
+    buffer = gst_buffer_new_allocate(NULL, frame->size, NULL);
 
+    // 填充视频帧数据
     gst_buffer_fill(buffer, 0, frame->buffer, frame->size);
 
-    // 设置PTS和DTS，假设二者相同
+    // 设置PTS
     GST_BUFFER_PTS(buffer) = frame->pts;
-    GST_BUFFER_DTS(buffer) = frame->pts;
 
-    // 设置每帧的持续时间，假设帧率为120
-    GST_BUFFER_DURATION(buffer) = gst_util_uint64_scale(frame->size, GST_SECOND, 120);
+    // 设置每帧的持续时间
+    GST_BUFFER_DURATION(buffer) = fps_time;
 
-    GstFlowReturn ret = GST_FLOW_OK; // 初始化
+    // 推送缓冲区到appsrc
+    g_signal_emit_by_name(appsrc, "push-buffer", buffer, &ret);
 
-    // 创建缓冲区的示例，如有必要，确保缓冲区也是有效的
-    if (buffer != NULL)
-    {
-        // 推送缓冲区到appsrc
-        g_signal_emit_by_name(appsrc, "push-buffer", buffer, &ret);
-        if (ret != GST_FLOW_OK)
-        {
-            g_printerr("Error pushing buffer: %d\n", ret);
-        }
-    }
-    else
-    {
-        g_printerr("Buffer is NULL, cannot push to appsrc.\n");
-    }
-
-    gst_buffer_unref(buffer); // 反引用以释放内存
+    // 释放内存
+    gst_buffer_unref(buffer);
 }
 
-int gst_push_init(void)
+int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
 {
     // 初始化GStreamer
     gst_init(NULL, NULL);
 
     // 创建GStreamer元素
     appsrc = gst_element_factory_make("appsrc", "source");
-    parser = gst_element_factory_make("h265parse", "parser");
-    rtp_payloader = gst_element_factory_make("rtph265pay", "rtp_payloader");
+    parser = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "h265parse" : "h264parse", "parser");
+    rtp_payloader = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "rtph265pay" : "rtph264pay", "rtp_payloader");
     udpsink = gst_element_factory_make("udpsink", "udp_sink");
 
     // 创建管道
@@ -64,12 +54,12 @@ int gst_push_init(void)
     }
     if (!parser)
     {
-        g_printerr("h265parse element could not be created. Exiting.\n");
+        g_printerr("parser element could not be created. Exiting.\n");
         return -1;
     }
     if (!rtp_payloader)
     {
-        g_printerr("rtph265pay element could not be created. Exiting.\n");
+        g_printerr("rtp_payloader element could not be created. Exiting.\n");
         return -1;
     }
     if (!udpsink)
@@ -79,8 +69,8 @@ int gst_push_init(void)
     }
 
     // 设置udpsink的属性（目标主机和端口）
-    g_object_set(udpsink, "host", HOST_IP, NULL);
-    g_object_set(udpsink, "port", HOST_PORT, NULL);
+    g_object_set(udpsink, "host", gst_push_init_parameter->host_ip, NULL);
+    g_object_set(udpsink, "port", gst_push_init_parameter->host_port, NULL);
 
     // 将元素添加到管道
     gst_bin_add_many(GST_BIN(pipeline), appsrc, parser, rtp_payloader, udpsink, NULL);
@@ -101,6 +91,8 @@ int gst_push_init(void)
 
     // 启动管道，切换到播放状态
     gst_element_set_state(pipeline, GST_STATE_PLAYING);
+
+    fps_time = gst_util_uint64_scale(GST_SECOND, 1, gst_push_init_parameter->fps);
 
     return 0;
 }
@@ -138,6 +130,7 @@ int gst_push_deinit(void)
             g_printerr("Unexpected message received.\n");
             break;
         }
+
         gst_message_unref(msg); // 释放消息对象
     }
 

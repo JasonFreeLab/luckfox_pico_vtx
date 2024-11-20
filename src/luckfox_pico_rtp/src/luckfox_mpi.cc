@@ -1,25 +1,13 @@
-/*****************************************************************************
- * | Author      :   Luckfox team
- * | Function    :
- * | Info        :
- *
- *----------------
- * | This version:   V1.0
- * | Date        :   2024-04-07
- * | Info        :   Basic version
- *
- ******************************************************************************/
-
 #include "luckfox_mpi.h"
 
 #define BITRATE (2 * 1024)
 
-// RK_U64 TEST_COMM_GetNowUs()
-// {
-// 	struct timespec time = {0, 0};
-// 	clock_gettime(CLOCK_MONOTONIC, &time);
-// 	return (RK_U64)time.tv_sec * 1000000 + (RK_U64)time.tv_nsec / 1000; /* microseconds */
-// }
+RK_U64 TEST_COMM_GetNowUs()
+{
+	struct timespec time = {0, 0};
+	clock_gettime(CLOCK_MONOTONIC, &time);
+	return (RK_U64)time.tv_sec * 1000000 + (RK_U64)time.tv_nsec / 1000; /* microseconds */
+}
 
 int vi_dev_init()
 {
@@ -90,7 +78,7 @@ int vi_chn_init(int channelId, int width, int height)
 	vi_chn_attr.stSize.u32Height = height;
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE; // COMPRESS_AFBC_16x16;
-	vi_chn_attr.u32Depth = 2;
+	vi_chn_attr.u32Depth = 2;						 // 0, get fail, 1 - u32BufCount, can get, if bind to other device, must be < u32BufCount
 	ret = RK_MPI_VI_SetChnAttr(0, channelId, &vi_chn_attr);
 	ret |= RK_MPI_VI_EnableChn(0, channelId);
 	if (ret)
@@ -109,10 +97,28 @@ int venc_init(int chnId, int width, int height, RK_CODEC_ID_E enType)
 	VENC_CHN_ATTR_S stAttr;
 	memset(&stAttr, 0, sizeof(VENC_CHN_ATTR_S));
 
-	// RTSP H265
+	if (enType == RK_VIDEO_ID_AVC)
+	{
+		stAttr.stRcAttr.enRcMode = VENC_RC_MODE_H264CBR;
+		stAttr.stRcAttr.stH264Cbr.u32BitRate = BITRATE;
+		stAttr.stRcAttr.stH264Cbr.u32Gop = 1;
+	}
+	else if (enType == RK_VIDEO_ID_HEVC)
+	{
+		stAttr.stRcAttr.enRcMode = VENC_RC_MODE_H265CBR;
+		stAttr.stRcAttr.stH265Cbr.u32BitRate = BITRATE;
+		stAttr.stRcAttr.stH265Cbr.u32Gop = 60;
+	}
+	else if (enType == RK_VIDEO_ID_MJPEG)
+	{
+		stAttr.stRcAttr.enRcMode = VENC_RC_MODE_MJPEGCBR;
+		stAttr.stRcAttr.stMjpegCbr.u32BitRate = BITRATE;
+	}
+
 	stAttr.stVencAttr.enType = enType;
-	stAttr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP; // RK_FMT_RGB888
-	stAttr.stVencAttr.u32Profile = H265E_PROFILE_MAIN;
+	stAttr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP; // RK_FMT_RGB888;
+	if (enType == RK_VIDEO_ID_AVC)
+		stAttr.stVencAttr.u32Profile = H264E_PROFILE_HIGH;
 	stAttr.stVencAttr.u32PicWidth = width;
 	stAttr.stVencAttr.u32PicHeight = height;
 	stAttr.stVencAttr.u32VirWidth = width;
@@ -121,9 +127,6 @@ int venc_init(int chnId, int width, int height, RK_CODEC_ID_E enType)
 	stAttr.stVencAttr.u32BufSize = width * height * 3 / 2;
 	stAttr.stVencAttr.enMirror = MIRROR_NONE;
 
-	stAttr.stRcAttr.enRcMode = VENC_RC_MODE_H265CBR;
-	stAttr.stRcAttr.stH265Cbr.u32BitRate = BITRATE;
-	stAttr.stRcAttr.stH265Cbr.u32Gop = 1;
 	RK_MPI_VENC_CreateChn(chnId, &stAttr);
 
 	memset(&stRecvParam, 0, sizeof(VENC_RECV_PIC_PARAM_S));

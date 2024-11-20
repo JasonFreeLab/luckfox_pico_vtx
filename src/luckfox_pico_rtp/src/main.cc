@@ -18,9 +18,13 @@
 #include "luckfox_mpi.h"
 #include "gst_push.h"
 
-#define VIDEO_WIDTH 1280 // 视频宽度
-#define VIDEO_HEIGHT 720 // 视频高度
-#define VIDEO_FPS 120	 // 视频帧率
+#define HOST_IP "127.0.0.1" // 目标主机IP
+#define HOST_PORT 5000		// 目标主机端口号
+
+#define VIDEO_WIDTH 1920  // 视频宽度
+#define VIDEO_HEIGHT 1080 // 视频高度
+#define VIDEO_FPS 120	  // 视频帧率
+#define VIDEO_ENCONDEC 1  // 视频编码方式0:H264, 1:H265
 
 int main(int argc, char *argv[])
 {
@@ -41,7 +45,13 @@ int main(int argc, char *argv[])
 	}
 
 	// gst初始化
-	if (gst_push_init() != RK_SUCCESS)
+	GstPushInitParameter_S gst_push_init_parameter;
+
+	gst_push_init_parameter.host_ip = (char *)HOST_IP;
+	gst_push_init_parameter.host_port = HOST_PORT;
+	gst_push_init_parameter.encodec_type = VIDEO_ENCONDEC ? EncondecType_E_H265 : EncondecType_E_H264;
+	gst_push_init_parameter.fps = VIDEO_FPS;
+	if (gst_push_init(&gst_push_init_parameter) != RK_SUCCESS)
 	{
 		RK_LOGE("gst push init fail!"); // 输出错误信息
 		return -1;						// 初始化失败，退出程序
@@ -52,8 +62,8 @@ int main(int argc, char *argv[])
 	vi_chn_init(0, VIDEO_WIDTH, VIDEO_HEIGHT); // 初始化视频输入通道
 
 	// venc初始化
-	RK_CODEC_ID_E enCodecType = RK_VIDEO_ID_HEVC;		  // 编码类型设置为H.265
-	venc_init(0, VIDEO_WIDTH, VIDEO_HEIGHT, enCodecType); // 初始化视频编码器
+	RK_CODEC_ID_E enCodecType = VIDEO_ENCONDEC ? RK_VIDEO_ID_HEVC : RK_VIDEO_ID_AVC; // 设置编码类型
+	venc_init(0, VIDEO_WIDTH, VIDEO_HEIGHT, enCodecType);							 // 初始化视频编码器
 
 	// 绑定vi到venc
 	MPP_CHN_S stSrcChn, stvencChn; // 声明源通道和编码通道结构
@@ -66,44 +76,38 @@ int main(int argc, char *argv[])
 	stvencChn.s32DevId = 0;			// 设备ID
 	stvencChn.s32ChnId = 0;			// 通道ID
 
-	if (RK_MPI_SYS_Bind(&stSrcChn, &stvencChn) != RK_SUCCESS)
-	{									  // 绑定视频输入和视频编码器
+	if (RK_MPI_SYS_Bind(&stSrcChn, &stvencChn) != RK_SUCCESS) // 绑定视频输入和视频编码器
+	{
 		RK_LOGE("bind 0 ch venc failed"); // 输出错误信息
 		return -1;						  // 绑定失败，退出程序
 	}
 
-	// guint64 frame_duration = 1000000 / VIDEO_FPS; // 计算每帧间隔（微秒）
-	RK_U64 nowUs = 0;	// 当前时间（微秒）
-
-	// h265帧
+	// 视频帧
 	VENC_STREAM_S stFrame;
 	stFrame.pstPack = (VENC_PACK_S *)malloc(sizeof(VENC_PACK_S)); // 为编码包分配内存
 
-	FrameData frame; // 帧数据变量
+	FrameData_S *frame;									// 帧数据变量
+	frame = (FrameData_S *)malloc(sizeof(FrameData_S)); // 为编码包分配内存
 
 	while (true)
 	{
 		// rtsp
-		if (RK_MPI_VENC_GetStream(0, &stFrame, -1) == RK_SUCCESS)
-		{																				 // 获取编码流
-			frame.buffer = (uint8_t *)RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk); // 获取视频帧数据
-			frame.size = stFrame.pstPack->u32Len;										 // 获取帧大小
-			frame.pts = stFrame.pstPack->u64PTS;										 // 获取PTS
+		if (RK_MPI_VENC_GetStream(0, &stFrame, -1) == RK_SUCCESS) // 获取编码流
+		{
+			frame->buffer = (uint8_t *)RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk); // 获取视频帧数据
+			frame->size = stFrame.pstPack->u32Len;										  // 获取帧大小
+			frame->pts = stFrame.pstPack->u64PTS;										  // 获取PTS
 
-			gst_push_data(&frame);
+			gst_push_data(frame);
+
+			printf("fps = %.2f\n", (float)1000000 / (float)(TEST_COMM_GetNowUs() - frame->pts)); // 输出当前帧率
 		}
 
-		// 释放帧
+		// 释放获取的帧
 		if (RK_MPI_VENC_ReleaseStream(0, &stFrame) != RK_SUCCESS)
-		{														  // 释放获取的帧
+		{
 			RK_LOGE("RK_MPI_VENC_ReleaseStream fail!\n"); // 输出错误信息
 		}
-
-		printf("fps = %.2f\n", (float)1000000 / (float)(frame.pts - nowUs)); // 输出当前帧率
-
-		nowUs = frame.pts;
-
-		// g_usleep(frame_duration); // 控制帧率
 	}
 
 	// 解除绑定
@@ -118,6 +122,7 @@ int main(int argc, char *argv[])
 	RK_MPI_VENC_DestroyChn(0);	  // 销毁编码器通道
 
 	free(stFrame.pstPack); // 释放编码包内存
+	free(frame);		   // 释放帧数据包内存
 
 	// 清理资源
 	gst_push_deinit();

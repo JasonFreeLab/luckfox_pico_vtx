@@ -18,7 +18,7 @@
 
 #include "sample_comm.h"
 
-// RK_U64 TEST_COMM_GetNowUs();
+RK_U64 TEST_COMM_GetNowUs();
 
 int vi_dev_init();
 int vi_chn_init(int channelId, int width, int height);
