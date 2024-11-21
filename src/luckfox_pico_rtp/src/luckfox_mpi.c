@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "luckfox_mpi.h"
 
 #define BITRATE (2 * 1024)

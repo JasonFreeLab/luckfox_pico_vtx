@@ -1,21 +1,6 @@
 #ifndef __LUCKFOX_MPI_H
 #define __LUCKFOX_MPI_H
 
-#include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <signal.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/poll.h>
-#include <time.h>
-#include <unistd.h>
-#include <vector>
-
 #include "sample_comm.h"
 
 RK_U64 TEST_COMM_GetNowUs();

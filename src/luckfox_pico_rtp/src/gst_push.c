@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "gst_push.h"
 
 GstElement *pipeline, *appsrc, *parser, *rtp_payloader, *udpsink;
@@ -107,7 +109,7 @@ int gst_push_deinit(void)
 
     // 处理消息
     bus = gst_element_get_bus(pipeline);
-    msg = gst_bus_timed_pop_filtered(bus, GST_CLOCK_TIME_NONE, GstMessageType(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+    msg = gst_bus_timed_pop_filtered(bus, GST_CLOCK_TIME_NONE, GST_MESSAGE_EOS | GST_MESSAGE_ERROR);
 
     if (msg != NULL)
     {

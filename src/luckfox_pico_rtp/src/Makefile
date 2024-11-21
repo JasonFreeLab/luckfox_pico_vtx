@@ -12,7 +12,7 @@ TARGET := luckfox_pico_rtp
 BUILD_DIR := $(OUT_DIR)/src/$(TARGET)
 LOCAL_PREFIX :=  $(BUILD_DIR)/_install
 
-CXX_DEFINES := -DOPENCV_DISABLE_THREAD_SUPPORT=1 -DRV1106_1103 -O1
+CXX_DEFINES := -DOPENCV_DISABLE_THREAD_SUPPORT=1 -DRV1106_1103 -O3
 CXX_INCLUDES := -I$(CURDIR)/../include \
 	-I$(LUCKFOX_MEDIA_PATH)/samples/common \
 	-I$(LUCKFOX_MEDIA_PATH)/samples/common/isp3.x \
@@ -37,8 +37,8 @@ _LDFLAGS := $(LDFLAGS) -L$(LUCKFOX_MEDIA_PATH)/out/lib \
 	-lrga -lsample_comm -lrockit -lrkaiq -lrockchip_mpp \
 	-lgstreamer-1.0 -lm -ldl -lgstapp-1.0 -lglib-2.0 -pthread -liconv -lintl -lgobject-2.0 -lgmodule-2.0 -lgstbase-1.0 -lpcre -lffi
  #-lrtsp
-SRCS := $(wildcard *.cc)
-OBJS := $(SRCS:.cc=.o)
+SRCS := $(wildcard *.c)
+OBJS := $(SRCS:.c=.o)
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   rules
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -55,12 +55,12 @@ $(BUILD_DIR):
 $(LOCAL_PREFIX):
 	@test -d $(LOCAL_PREFIX) || mkdir -p $(LOCAL_PREFIX)
 
-%.o: %.cc
-	$(CXX) $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -c -o $(BUILD_DIR)/$@ $<
+%.o: %.c
+	$(CC) $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -c -o $(BUILD_DIR)/$@ $<
 
 $(TARGET): $(OBJS)
 	cd $(BUILD_DIR)/ && \
-	$(CXX) -o $(LOCAL_PREFIX)/$@ $^ $(_LDFLAGS) && \
+	$(CC) -o $(LOCAL_PREFIX)/$@ $^ $(_LDFLAGS) && \
 	cd -
 
 clean:

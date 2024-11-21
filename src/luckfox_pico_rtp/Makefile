@@ -41,7 +41,7 @@ uninstall:
 
 $(objects):
 	@echo -e "\033[32m""Build luckfox_pico_rtp ...""\033[00m"
-	make -C $@ -j16 CC=$(CMAKE_C_COMPILER) CXX=$(CMAKE_CXX_COMPILER)
+	make -C $@ -j16 CC=$(CMAKE_C_COMPILER)
 
 $(objects_clean):
 	make -C $(patsubst %_clean,%,$@) clean

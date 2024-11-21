@@ -25,8 +25,8 @@ iwlist wlan0 channel
 #iw dev wlan0 set txpower fixed 1700
 #cat /proc/net/rtl8812cu/wlan0/tx_power_idx
 
-./wfb_tx -p 0 -u 5600 -K drone.key wlan0 &
+/vtx/bin/wfb_tx -p 0 -u 5600 -K drone.key wlan0 &
 sleep 1
 
-#ffmpeg -re -stream_loop -1 -i 123.mp4 -vcodec copy -pkt_size 1300 -f h264 "udp://127.0.0.1:5602"
-./luckfox_pico_rtp -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1
+#ffmpeg -re -stream_loop -1 -i 123.mp4 -vcodec copy -pkt_size 1300 -f h264 "udp://127.0.0.1:5600"
+/vtx/bin/luckfox_pico_rtp -i 127.0.0.1 -p 5600 -w 1920 -h 1080 -f 90 -e 1

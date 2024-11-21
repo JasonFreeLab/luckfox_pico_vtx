@@ -1,19 +1,4 @@
-#include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <signal.h>
-#include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/poll.h>
-#include <time.h>
-#include <unistd.h>
-#include <vector>
-
-#include <glib.h>
 
 #include "luckfox_mpi.h"
 #include "gst_push.h"

@@ -1,8 +1,6 @@
 #ifndef __GST_PUSH_H
 #define __GST_PUSH_H
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
 
 #include <gst/gst.h>

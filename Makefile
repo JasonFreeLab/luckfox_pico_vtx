@@ -11,6 +11,9 @@ include base.mak
 objects := src
 objects_clean := $(addsuffix _clean,$(objects))
 objects_uninstall := $(addsuffix _uninstall,$(objects))
+
+MODULE_PATH := scripts/wfb_vtx.sh scripts/wfb_vrx.sh
+SCRIPTS_INSTALL_DIR := $(INSTALL_DIR)/vtx/scripts
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   rules
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -21,6 +24,8 @@ objects_uninstall := $(addsuffix _uninstall,$(objects))
 .PHONY: all clean
 
 all: $(objects)
+	@test -d $(SCRIPTS_INSTALL_DIR) || mkdir -p $(SCRIPTS_INSTALL_DIR)
+	@cp -v $(MODULE_PATH) $(SCRIPTS_INSTALL_DIR)/
 
 clean: $(objects_clean)
 	@rm -rf $(OUT_DIR)
