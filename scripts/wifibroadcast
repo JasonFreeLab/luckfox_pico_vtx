@@ -1,0 +1,55 @@
+#!/bin/sh
+
+# 启用脚本的环境变量文件
+. /etc/default/wifibroadcast
+# . /etc/default/wifibroadcast.${WFB_PROFILE}
+WFB_PROFILE="drone"
+
+# 定义启动函数
+start() {
+    echo "Starting wifibroadcast profile ${WFB_PROFILE}..."
+    
+    while true; do
+        # 启动服务并获取PID
+        /usr/bin/wfb-server ${WFB_PROFILE} ${WFB_NICS} &
+        echo $! > /var/run/wifibroadcast.pid  # 记录进程ID
+
+        # 等待服务退出
+        wait $(cat /var/run/wifibroadcast.pid)
+
+        echo "wifibroadcast profile ${WFB_PROFILE} exited. Restarting..."
+        sleep 5  # 在重启前等待5秒，防止过于频繁的重启
+    done
+}
+
+stop() {
+    echo "Stopping wifibroadcast profile ${WFB_PROFILE}..."
+    if [ -f /var/run/wifibroadcast.pid ]; then
+        kill $(cat /var/run/wifibroadcast.pid)
+        rm /var/run/wifibroadcast.pid
+    else
+        echo "wifibroadcast is not running."
+    fi
+}
+
+restart() {
+    stop
+    sleep 1
+    start
+}
+
+# 处理传入的参数
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        restart
+        *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac

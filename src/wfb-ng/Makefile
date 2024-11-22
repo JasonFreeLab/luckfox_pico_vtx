@@ -9,16 +9,14 @@ include $(PROJECT_DIR)/base.mak
 #===============================================================================
 BUILD_DIR := $(OUT_DIR)/src/wfb-ng
 
-INSTALL_DIR := $(INSTALL_DIR)/vtx/bin
+INSTALL_DIR := $(INSTALL_DIR)/vtx/wfb_ng
 
 MODULE_SRC := wfb-ng-wfb-ng-24.08.2
-MODULE := wfb_rx wfb_tx wfb_tx_cmd wfb_keygen drone.key gs.key
-MODULE_PATH := $(BUILD_DIR)/$(MODULE_SRC)/wfb_rx \
-	$(BUILD_DIR)/$(MODULE_SRC)/wfb_tx \
-	$(BUILD_DIR)/$(MODULE_SRC)/wfb_tx_cmd \
-	$(BUILD_DIR)/$(MODULE_SRC)/wfb_keygen \
-	$(BUILD_DIR)/$(MODULE_SRC)/drone.key \
-	$(BUILD_DIR)/$(MODULE_SRC)/gs.key
+WFB_NG_VERSION := 24.08.2
+MODULE := drone.key gs.key wfb-ng-24.8.2.linux-arm.tar.gz
+MODULE_PATH := $(BUILD_DIR)/$(MODULE_SRC)/drone.key \
+	$(BUILD_DIR)/$(MODULE_SRC)/gs.key \
+	$(BUILD_DIR)/$(MODULE_SRC)/dist/wfb-ng-24.8.2.linux-arm.tar.gz
 
 BUILD_MODULES = $(patsubst %,%_build,${MODULE_SRC})
 UNINSTALL_MODULES = $(patsubst %,%_uninstall,${MODULE})
@@ -52,8 +50,9 @@ uninstall: $(UNINSTALL_MODULES)
 	cd $(BUILD_DIR)/$(patsubst %_build,%,$@) && \
 	make gs.key -j16 && \
 	make clean && \
-	make all_bin -j16 \
-		ARCH=$(CFG_HI_CPU_ARCH) \
+	make bdist -j16 \
+		ARCH=$(ARCH) \
+		VERSION=$(WFB_NG_VERSION) \
 		CC=$(CMAKE_C_COMPILER) \
 		CXX=$(CMAKE_CXX_COMPILER) \
 		CFLAGS+="-I$(BUILDROOT_SYSROOT)/usr/include \
