@@ -11,7 +11,7 @@ start() {
     
     while true; do
         # 启动服务并获取PID
-        /usr/bin/wfb-server ${WFB_PROFILE} ${WFB_NICS} &
+        python3 /usr/bin/wfb-server ${WFB_PROFILE} ${WFB_NICS} &
         echo $! > /var/run/wifibroadcast.pid  # 记录进程ID
 
         # 等待服务退出
@@ -39,7 +39,7 @@ restart() {
 }
 
 # 处理传入的参数
-case "$1" in
+case $1 in
     start)
         start
         ;;
@@ -48,7 +48,8 @@ case "$1" in
         ;;
     restart)
         restart
-        *)
+        ;;
+    *)
         echo "Usage: $0 {start|stop|restart}"
         exit 1
         ;;

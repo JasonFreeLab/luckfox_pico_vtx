@@ -13,10 +13,10 @@ INSTALL_DIR := $(INSTALL_DIR)/vtx/wfb_ng
 
 MODULE_SRC := wfb-ng-wfb-ng-24.08.2
 WFB_NG_VERSION := 24.08.2
-MODULE := drone.key gs.key wfb-ng-24.8.2.linux-arm.tar.gz
+MODULE := drone.key gs.key wfb_ng-24.8.2.linux-arm.tar.gz
 MODULE_PATH := $(BUILD_DIR)/$(MODULE_SRC)/drone.key \
 	$(BUILD_DIR)/$(MODULE_SRC)/gs.key \
-	$(BUILD_DIR)/$(MODULE_SRC)/dist/wfb-ng-24.8.2.linux-arm.tar.gz
+	$(BUILD_DIR)/$(MODULE_SRC)/dist/wfb_ng-24.8.2.linux-arm.tar.gz
 
 BUILD_MODULES = $(patsubst %,%_build,${MODULE_SRC})
 UNINSTALL_MODULES = $(patsubst %,%_uninstall,${MODULE})
@@ -53,6 +53,7 @@ uninstall: $(UNINSTALL_MODULES)
 	make bdist -j16 \
 		ARCH=$(ARCH) \
 		VERSION=$(WFB_NG_VERSION) \
+		PYTHON=$(HOME)/miniconda3/envs/luckfox/bin/python3 \
 		CC=$(CMAKE_C_COMPILER) \
 		CXX=$(CMAKE_CXX_COMPILER) \
 		CFLAGS+="-I$(BUILDROOT_SYSROOT)/usr/include \

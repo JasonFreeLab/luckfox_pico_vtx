@@ -147,6 +147,7 @@ int main(int argc, char *argv[])
 	free(frame);		   // 释放帧数据包内存
 
 	// 清理资源
+	RK_LOGE("gst push deinit.\n");
 	gst_push_deinit();
 
 	RK_MPI_SYS_Exit(); // 退出RK MPI系统

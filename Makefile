@@ -12,8 +12,8 @@ objects := src
 objects_clean := $(addsuffix _clean,$(objects))
 objects_uninstall := $(addsuffix _uninstall,$(objects))
 
-MODULE_PATH := scripts/wfb_vtx.sh scripts/wfb_vrx.sh scripts/wifibroadcast.cfg
-SCRIPTS_INSTALL_DIR := $(INSTALL_DIR)/vtx/scripts
+MODULE_PATH := scripts
+SCRIPTS_INSTALL_DIR := $(INSTALL_DIR)/vtx/wfb_ng
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   rules
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -25,7 +25,7 @@ SCRIPTS_INSTALL_DIR := $(INSTALL_DIR)/vtx/scripts
 
 all: $(objects)
 	@test -d $(SCRIPTS_INSTALL_DIR) || mkdir -p $(SCRIPTS_INSTALL_DIR)
-	@cp -v $(MODULE_PATH) $(SCRIPTS_INSTALL_DIR)/
+	@cp -rv $(MODULE_PATH) $(SCRIPTS_INSTALL_DIR)/
 
 clean: $(objects_clean)
 	@rm -rf $(OUT_DIR)

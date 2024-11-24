@@ -1,0 +1,15 @@
+#!/bin/sh
+
+case $1 in
+        start)
+                ifconfig eth0 192.168.0.10 netmask 255.255.255.0
+                route add default gw 192.168.0.1
+                echo "nameserver 114.114.114.114" > /etc/resolv.conf
+               
+                ;;
+        stop)
+                ;;
+        *)
+                exit 1
+                ;;
+esac

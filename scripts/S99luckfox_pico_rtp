@@ -1,0 +1,53 @@
+#!/bin/sh
+
+# 定义启动函数
+start() {
+    echo "Starting luckfox_pico_rtp..."
+    /oem/usr/bin/RkLunch-stop.sh
+    /vtx/wfb_ng/scripts/wlan_setup.sh
+    export LD_LIBRARY_PATH=/oem/usr/lib:$LD_LIBRARY_PATH
+    while true; do
+        # 启动服务并获取PID
+        /vtx/bin/luckfox_pico_rtp -i 127.0.0.1 -p 5602 -w 1920 -h 1080 -f 90 -e 1 &
+        echo $! > /var/run/luckfox_pico_rtp.pid  # 记录进程ID
+
+        # 等待服务退出
+        wait $(cat /var/run/luckfox_pico_rtp.pid)
+
+        echo "luckfox_pico_rtp exited. Restarting..."
+        sleep 5  # 在重启前等待5秒，防止过于频繁的重启
+    done
+}
+
+stop() {
+    echo "Stopping luckfox_pico_rtp..."
+    if [ -f /var/run/luckfox_pico_rtp.pid ]; then
+        kill $(cat /var/run/luckfox_pico_rtp.pid)
+        rm /var/run/luckfox_pico_rtp.pid
+    else
+        echo "luckfox_pico_rtp is not running."
+    fi
+}
+
+restart() {
+    stop
+    sleep 1
+    start
+}
+
+# 处理传入的参数
+case $1 in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        restart
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
