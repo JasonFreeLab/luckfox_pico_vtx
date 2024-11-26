@@ -53,7 +53,7 @@ uninstall: $(UNINSTALL_MODULES)
 	make bdist -j16 \
 		ARCH=$(ARCH) \
 		VERSION=$(WFB_NG_VERSION) \
-		PYTHON=$(HOME)/miniconda3/envs/luckfox/bin/python3 \
+		PYTHON=$(PYTHON) \
 		CC=$(CMAKE_C_COMPILER) \
 		CXX=$(CMAKE_CXX_COMPILER) \
 		CFLAGS+="-I$(BUILDROOT_SYSROOT)/usr/include \

@@ -1,4 +1,5 @@
 LUCKFOX_SDK_PATH ?= $(HOME)/luckfox-pico
+PYTHON=$(HOME)/miniconda3/envs/luckfox/bin/python3
 
 ARCH := arm
 
