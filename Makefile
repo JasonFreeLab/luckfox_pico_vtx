@@ -13,7 +13,7 @@ objects_clean := $(addsuffix _clean,$(objects))
 objects_uninstall := $(addsuffix _uninstall,$(objects))
 
 MODULE_PATH := scripts
-SCRIPTS_INSTALL_DIR := $(INSTALL_DIR)/vtx/wfb_ng
+SCRIPTS_INSTALL_DIR := $(INSTALL_DIR)/vtx/scripts
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #   rules
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

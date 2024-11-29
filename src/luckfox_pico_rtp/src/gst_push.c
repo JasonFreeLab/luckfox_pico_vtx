@@ -2,21 +2,32 @@
 
 #include "gst_push.h"
 
-GstElement *pipeline, *appsrc, *parser, *rtp_payloader, *udpsink;
+GstElement *pipeline, *appsrc, *parser, *rtp_payloader, *udpsink, *queue;
 guint64 fps_time = 0;
 GstBuffer *buffer;
 GstFlowReturn ret;
 
-// 获取视频帧并将其推送到管道
+/**
+ * @brief 获取视频帧并将其推送到管道
+ *
+ * @param frame 指向 FrameData_S 结构体的指针，包含视频帧数据
+ *
+ * 本函数创建一个GStreamer缓冲区，填充视频帧数据，设置时间戳并将缓冲区推送到appsrc。
+ */
 void gst_push_data(FrameData_S *frame)
 {
     // 创建GStreamer的缓冲区
     buffer = gst_buffer_new_allocate(NULL, frame->size, NULL);
+    if (buffer == NULL)
+    {
+        g_printerr("Failed to create buffer.\n");
+        return; // 确保缓冲区创建成功
+    }
 
     // 填充视频帧数据
     gst_buffer_fill(buffer, 0, frame->buffer, frame->size);
 
-    // 设置PTS
+    // 设置PTS（Presentation Timestamp）
     GST_BUFFER_PTS(buffer) = frame->pts;
 
     // 设置每帧的持续时间
@@ -24,11 +35,23 @@ void gst_push_data(FrameData_S *frame)
 
     // 推送缓冲区到appsrc
     g_signal_emit_by_name(appsrc, "push-buffer", buffer, &ret);
+    if (ret != GST_FLOW_OK)
+    {
+        g_printerr("Error pushing buffer to appsrc: %d\n", ret);
+    }
 
     // 释放内存
     gst_buffer_unref(buffer);
 }
 
+/**
+ * @brief 初始化GStreamer管道
+ *
+ * @param gst_push_init_parameter 指向 GstPushInitParameter_S 结构体的指针，包含初始化参数
+ * @return int 返回0表示成功，返回-1表示失败
+ *
+ * 本函数初始化GStreamer，创建所需的元素，链接它们并设置属性。还会根据传入的帧率计算持续时间。
+ */
 int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
 {
     // 初始化GStreamer
@@ -39,49 +62,15 @@ int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
     parser = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "h265parse" : "h264parse", "parser");
     rtp_payloader = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "rtph265pay" : "rtph264pay", "rtp_payloader");
     udpsink = gst_element_factory_make("udpsink", "udp_sink");
+    queue = gst_element_factory_make("queue", "queue");
 
     // 创建管道
     pipeline = gst_pipeline_new("video-pipeline");
 
     // 检查元素是否创建成功，失败则打印错误信息并退出
-    if (!pipeline)
+    if (!pipeline || !appsrc || !parser || !rtp_payloader || !udpsink || !queue)
     {
-        g_printerr("pipeline element could not be created. Exiting.\n");
-        return -1;
-    }
-    if (!appsrc)
-    {
-        g_printerr("appsrc element could not be created. Exiting.\n");
-        return -1;
-    }
-    if (!parser)
-    {
-        g_printerr("parser element could not be created. Exiting.\n");
-        return -1;
-    }
-    if (!rtp_payloader)
-    {
-        g_printerr("rtp_payloader element could not be created. Exiting.\n");
-        return -1;
-    }
-    if (!udpsink)
-    {
-        g_printerr("udpsink element could not be created. Exiting.\n");
-        return -1;
-    }
-
-    // 设置udpsink的属性（目标主机和端口）
-    g_object_set(udpsink, "host", gst_push_init_parameter->host_ip, NULL);
-    g_object_set(udpsink, "port", gst_push_init_parameter->host_port, NULL);
-
-    // 将元素添加到管道
-    gst_bin_add_many(GST_BIN(pipeline), appsrc, parser, rtp_payloader, udpsink, NULL);
-
-    // 链接管道中的元素，如果失败则打印错误信息并退出
-    if (!gst_element_link_many(appsrc, parser, rtp_payloader, udpsink, NULL))
-    {
-        g_printerr("Elements could not be linked. Exiting.\n");
-        gst_object_unref(pipeline);
+        g_printerr("Failed to create one or more GStreamer elements. Exiting.\n");
         return -1;
     }
 
@@ -91,14 +80,49 @@ int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
     g_object_set(appsrc, "min-latency", 0, NULL);
     g_object_set(appsrc, "max-latency", 0, NULL);
 
+    // 设置udpsink的属性（目标主机和端口）
+    g_object_set(udpsink, "host", gst_push_init_parameter->host_ip, NULL);
+    g_object_set(udpsink, "port", gst_push_init_parameter->host_port, NULL);
+    g_object_set(udpsink, "sync", FALSE, NULL); // 不使用同步，立即发送
+
+    // 设置队列的属性
+    g_object_set(queue, "max-size-buffers", 1, NULL); // 最大缓存1个缓冲区
+    g_object_set(queue, "max-size-bytes", 0, NULL);   // 最大缓存字节数，0表示无限制
+    g_object_set(queue, "max-size-time", 0, NULL);    // 最大缓存时间，0表示无限制
+
+    // 将元素添加到管道
+    gst_bin_add_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL);
+
+    // 链接管道中的元素，如果失败则打印错误信息并退出
+    if (!gst_element_link_many(appsrc, parser, queue, rtp_payloader, udpsink, NULL))
+    {
+        g_printerr("Elements could not be linked. Exiting.\n");
+        gst_bin_remove_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL);
+        gst_object_unref(pipeline);
+        return -1;
+    }
+
     // 启动管道，切换到播放状态
     gst_element_set_state(pipeline, GST_STATE_PLAYING);
 
-    fps_time = gst_util_uint64_scale(GST_SECOND, 1, gst_push_init_parameter->fps);
+    // 计算帧持续时间
+    // if (gst_push_init_parameter->fps > 0) {
+    //     fps_time = gst_util_uint64_scale(GST_SECOND, 1, gst_push_init_parameter->fps);
+    // } else {
+    //     g_printerr("FPS must be greater than 0.\n");
+    //     fps_time = gst_util_uint64_scale(GST_SECOND, 1, 30);
+    // }
 
     return 0;
 }
 
+/**
+ * @brief 清理和释放GStreamer管道资源
+ *
+ * @return int 返回0表示成功
+ *
+ * 本函数发送EOS信号，处理可能的错误消息，然后清理管道资源。
+ */
 int gst_push_deinit(void)
 {
     GstBus *bus;

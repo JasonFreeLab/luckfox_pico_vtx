@@ -44,3 +44,21 @@ gst-launch-1.0 udpsrc port=5600 \
     ! avdec_h265 \
     ! clockoverlay valignment=bottom \
     ! autovideosink sync=false
+
+gst-launch-1.0 -v udpsrc port=5600 \
+    buffer-size=200000 ! \
+    application/x-rtp,media=video,encoding-name=H265 ! \
+    rtph265depay ! \
+    queue max-size-buffers=3 leaky=downstream ! \
+    avdec_h265 ! \
+    videoconvert ! \
+    autovideosink sync=false
+
+gst-launch-1.0 udpsrc port=5600 \
+    buffer-size=50000 \
+    caps='application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H265' \
+    ! rtph265depay \
+    ! queue max-size-buffers=1 leaky=downstream \
+    ! nvh265dec \
+    ! clockoverlay valignment=bottom \
+    ! autovideosink sync=false

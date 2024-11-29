@@ -1,7 +1,11 @@
 #include <stdio.h>
+#include <unistd.h> // usleep requires this header
+#include <time.h>   // for nanosleep
 
 #include "luckfox_mpi.h"
+
 #include "gst_push.h"
+#include "rtp_udp_push.h"
 
 #define DEFAULT_IP "127.0.0.1" // 默认主机IP
 #define DEFAULT_PORT 5000	   // 默认主机端口号
@@ -10,14 +14,32 @@
 #define DEFAULT_FPS 90		   // 默认视频帧率
 #define DEFAULT_ENCONDEC 1	   // 视频编码方式0:H264, 1:H265
 
+/**
+ * @brief 打印程序使用说明
+ *
+ * @param program_name 程序名称字符串
+ */
+void display_usage(const char *program_name)
+{
+	fprintf(stderr, "Usage: %s [-i host_ip] [-p host_port] [-w video_width] [-h video_height] [-f video_fps] [-e video_encodec(0:H264, 1:H265)]\n", program_name);
+	fprintf(stderr, "For example: ./%s -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1\n", program_name);
+}
+
+/**
+ * @brief 主程序入口
+ *
+ * @param argc 命令行参数数量
+ * @param argv 命令行参数数组
+ * @return int 返回0表示程序正常结束，非0表示程序异常结束
+ */
 int main(int argc, char *argv[])
 {
-	const char *host_ip = DEFAULT_IP;
-	int host_port = DEFAULT_PORT;
-	int video_width = DEFAULT_WIDTH;
-	int video_height = DEFAULT_HEIGHT;
-	int video_fps = DEFAULT_FPS;
-	int video_encodec = DEFAULT_ENCONDEC;
+	const char *host_ip = DEFAULT_IP;	  // 主机IP
+	int host_port = DEFAULT_PORT;		  // 主机端口号
+	int video_width = DEFAULT_WIDTH;	  // 视频宽度
+	int video_height = DEFAULT_HEIGHT;	  // 视频高度
+	int video_fps = DEFAULT_FPS;		  // 视频帧率
+	int video_encodec = DEFAULT_ENCONDEC; // 视频编码方式
 
 	// 解析命令行参数
 	int c;
@@ -44,13 +66,19 @@ int main(int argc, char *argv[])
 			video_encodec = atoi(optarg); // 设置视频编码方式
 			break;
 		default:
-			fprintf(stderr, "Usage: %s [-i host_ip] [-p host_port] [-w video_width] [-h video_height] [-f video_fps] [-e video_encodec(0:H264, 1:H265)]\n", argv[0]);
-			fprintf(stderr, "For example: ./%s -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1\n", argv[0]);
+			display_usage(argv[0]);
 			exit(EXIT_FAILURE);
 		}
 	}
 
-	system("RkLunch-stop.sh"); // 停止任何现有的RkLunch服务
+	// 检查是否只有 -h 或 --help 选项
+	if (argc == 1 || (argc == 2 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)))
+	{
+		display_usage(argv[0]);
+		exit(EXIT_SUCCESS);
+	}
+
+	// system("RkLunch-stop.sh"); // 停止任何现有的RkLunch服务
 
 	// rkaiq初始化
 	RK_BOOL multi_sensor = RK_FALSE;							 // 多传感器标志
@@ -67,17 +95,17 @@ int main(int argc, char *argv[])
 	}
 
 	// gst初始化
-	GstPushInitParameter_S gst_push_init_parameter;
+	// GstPushInitParameter_S gst_push_init_parameter;
 
-	gst_push_init_parameter.host_ip = (char *)host_ip;
-	gst_push_init_parameter.host_port = host_port;
-	gst_push_init_parameter.encodec_type = video_encodec ? EncondecType_E_H265 : EncondecType_E_H264;
-	gst_push_init_parameter.fps = video_fps;
-	if (gst_push_init(&gst_push_init_parameter) != RK_SUCCESS)
-	{
-		RK_LOGE("gst push init fail!"); // 输出错误信息
-		return -1;						// 初始化失败，退出程序
-	}
+	// gst_push_init_parameter.host_ip = (char *)host_ip;												  // 推送主机IP
+	// gst_push_init_parameter.host_port = host_port;													  // 推送主机端口号
+	// gst_push_init_parameter.encodec_type = video_encodec ? EncondecType_E_H265 : EncondecType_E_H264; // 编码方式
+	// gst_push_init_parameter.fps = video_fps;														  // 视频帧率
+	// if (gst_push_init(&gst_push_init_parameter) != RK_SUCCESS)
+	// {
+	// 	RK_LOGE("gst push init fail!"); // 输出错误信息
+	// 	return -1;						// 初始化失败，退出程序
+	// }
 
 	// vi初始化
 	vi_dev_init();							   // 初始化视频输入设备
@@ -111,6 +139,17 @@ int main(int argc, char *argv[])
 	FrameData_S *frame;									// 帧数据变量
 	frame = (FrameData_S *)malloc(sizeof(FrameData_S)); // 为编码包分配内存
 
+	uint64_t last_frame_time = 0; // 上一帧的时间
+	uint64_t FRAME_INTERVAL = (1000000 / video_fps); // 每帧的间隔时间（微秒）
+
+	uint64_t current_time = 0;
+	uint64_t elapsed_time = 0;
+
+	// Udp_Connection_S *conn;
+	// conn = (Udp_Connection_S *)malloc(sizeof(Udp_Connection_S)); // 为RTP包头分配内存
+
+	// rtp_udp_push_init(conn);
+
 	while (true)
 	{
 		// rtsp
@@ -120,9 +159,19 @@ int main(int argc, char *argv[])
 			frame->size = stFrame.pstPack->u32Len;										  // 获取帧大小
 			frame->pts = stFrame.pstPack->u64PTS;										  // 获取PTS
 
-			gst_push_data(frame); // 推送视频帧
+			// gst_push_data(frame); // 推送视频帧
+			// rtp_udp_push(conn, frame->buffer, frame->size, frame->pts);
 
-			printf("fps = %.2f\n", (float)1000000 / (float)(TEST_COMM_GetNowUs() - frame->pts)); // 输出当前帧率
+			// 控制帧率
+			current_time = TEST_COMM_GetNowUs();
+			elapsed_time = current_time - last_frame_time;
+			if (elapsed_time < FRAME_INTERVAL)
+			{
+				usleep(FRAME_INTERVAL - elapsed_time); // 等待到下一个帧间隔
+			}
+			last_frame_time = current_time;
+
+			// printf("fps = %.2f\n", (float)1000000 / (float)(TEST_COMM_GetNowUs() - frame->pts)); // 输出当前帧率
 		}
 
 		// 释放获取的帧
@@ -148,7 +197,8 @@ int main(int argc, char *argv[])
 
 	// 清理资源
 	RK_LOGE("gst push deinit.\n");
-	gst_push_deinit();
+	// gst_push_deinit();
+	// rtp_udp_push_deinit(conn);
 
 	RK_MPI_SYS_Exit(); // 退出RK MPI系统
 
