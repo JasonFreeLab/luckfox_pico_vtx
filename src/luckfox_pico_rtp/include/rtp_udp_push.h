@@ -9,9 +9,8 @@
 
 #define PORT 5602
 #define RTP_HEADER_SIZE 12
-#define RTP_PACKET_SIZE 1500
 #define UDP_PACKET_SIZE 1472
-#define FRAME_SIZE 1024
+#define RTP_PACKET_SIZE UDP_PACKET_SIZE - RTP_HEADER_SIZE
 
 typedef struct
 {

@@ -9,6 +9,7 @@
 #include "rtp_udp_push.h"
 
 uint8_t *frame_data_end;
+size_t frame_size_end = 0;
 
 // 初始化UDP连接
 int init_udp_connection(Udp_Connection_S *conn)
@@ -76,20 +77,20 @@ void build_rtp_packet(Udp_Connection_S *conn, uint32_t frame_pts)
 // 视频流发送处理
 int rtp_udp_push(Udp_Connection_S *conn, uint8_t *frame_data, size_t frame_size, uint32_t frame_pts)
 {
+    fprintf(stderr, "rtp_udp_push RTP\n");
     uint8_t udp_packet[UDP_PACKET_SIZE];
 
-    uint8_t frame_pack_number = frame_size / (UDP_PACKET_SIZE - RTP_HEADER_SIZE);
-    size_t frame_size_end = frame_size % (UDP_PACKET_SIZE - RTP_HEADER_SIZE);
-
-    while(frame_pack_number)
+    if(frame_size_end > 0)
     {
+        memcpy(udp_packet, frame_data_end, (frame_size_end + RTP_HEADER_SIZE));
+
         build_rtp_packet(conn, frame_pts); // 构建RTP包头
 
-        memcpy(udp_packet, conn->rtp_header, RTP_HEADER_SIZE);        // 复制RTP头
+        memcpy(udp_packet + (frame_size_end + RTP_HEADER_SIZE), conn->rtp_header, RTP_HEADER_SIZE);        // 复制RTP头
 
-        memcpy(udp_packet + RTP_HEADER_SIZE, frame_data, frame_size); // 复制帧数据
+        memcpy(udp_packet + (frame_size_end + 2 * RTP_HEADER_SIZE), frame_data, UDP_PACKET_SIZE - (frame_size_end + 2 * RTP_HEADER_SIZE)); // 复制帧数据
 
-        ssize_t sent = sendto(conn->sock, udp_packet, RTP_HEADER_SIZE + frame_size, 0, (struct sockaddr *)&conn->addr, sizeof(conn->addr));
+        ssize_t sent = sendto(conn->sock, udp_packet, UDP_PACKET_SIZE, 0, (struct sockaddr *)&conn->addr, sizeof(conn->addr));
         if (sent < 0)
         {
             perror("sendto");
@@ -97,13 +98,56 @@ int rtp_udp_push(Udp_Connection_S *conn, uint8_t *frame_data, size_t frame_size,
         }
 
         conn->seq_num++; // 增加序列号
-        usleep(100000);  // 发送间隔100毫秒
 
-        frame_pack_number--;
+        frame_data = frame_data + (UDP_PACKET_SIZE - (frame_size_end + 2 * RTP_HEADER_SIZE));
+        frame_size = frame_size - (UDP_PACKET_SIZE - (frame_size_end + 2 * RTP_HEADER_SIZE));
+    }
+
+    uint8_t frame_pack_number = frame_size / RTP_PACKET_SIZE;
+    frame_size_end = frame_size % RTP_PACKET_SIZE;
+
+    size_t i = 0;
+    while(i < frame_pack_number)
+    {
+        build_rtp_packet(conn, frame_pts); // 构建RTP包头
+
+        memcpy(udp_packet, conn->rtp_header, RTP_HEADER_SIZE);        // 复制RTP头
+
+        memcpy(udp_packet + RTP_HEADER_SIZE, frame_data + (RTP_PACKET_SIZE * i), RTP_PACKET_SIZE); // 复制帧数据
+
+        ssize_t sent = sendto(conn->sock, udp_packet, UDP_PACKET_SIZE, 0, (struct sockaddr *)&conn->addr, sizeof(conn->addr));
+        if (sent < 0)
+        {
+            perror("sendto");
+            return -1; // 发送失败，退出
+        }
+
+        conn->seq_num++; // 增加序列号
+        frame_pts++;
+        i++;
+        // usleep(1000);  // 发送间隔1毫秒
+
         memset(udp_packet, 0, UDP_PACKET_SIZE);
     }
 
-    memcpy(frame_data_end, frame_data - frame_size_end, frame_size_end);
+    build_rtp_packet(conn, frame_pts); // 构建RTP包头
+    memcpy(frame_data_end, conn->rtp_header, RTP_HEADER_SIZE);        // 复制RTP头
+    memcpy(frame_data_end + RTP_HEADER_SIZE, frame_data - frame_size_end, frame_size_end);
+
+    if((frame_size_end > 0) && (UDP_PACKET_SIZE - (frame_size_end + RTP_HEADER_SIZE) < RTP_HEADER_SIZE))
+    {
+        ssize_t sent = sendto(conn->sock, frame_data_end, (frame_size_end + RTP_HEADER_SIZE), 0, (struct sockaddr *)&conn->addr, sizeof(conn->addr));
+        if (sent < 0)
+        {
+            perror("sendto");
+            return -1; // 发送失败，退出
+        }
+
+        conn->seq_num++; // 增加序列号
+
+        memset(frame_data_end, 0, UDP_PACKET_SIZE);
+        frame_size_end = 0;
+    }
 
     return 0; // 线程结束
 }
@@ -125,13 +169,13 @@ int rtp_udp_push_deinit(Udp_Connection_S *conn)
 int rtp_udp_push_init(Udp_Connection_S *conn)
 {
 
-    if (!init_udp_connection(conn))
+    if (0 != init_udp_connection(conn))
     {
         fprintf(stderr, "Failed to initialize UDP connection\n");
         return EXIT_FAILURE; // 程序初始化失败
     }
 
-    if (!init_rtp(conn))
+    if (0 != init_rtp(conn))
     {
         fprintf(stderr, "Failed to initialize RTP\n");
         return EXIT_FAILURE; // 程序初始化失败
