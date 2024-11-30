@@ -145,10 +145,9 @@ int main(int argc, char *argv[])
 	uint64_t current_time = 0;
 	uint64_t elapsed_time = 0;
 
-	Udp_Connection_S *conn;
-	conn = (Udp_Connection_S *)malloc(sizeof(Udp_Connection_S)); // 为RTP包头分配内存
+	Udp_Connection_S conn;
 
-	rtp_udp_push_init(conn);
+	rtp_udp_push_init(&conn);
 
 	while (true)
 	{
@@ -160,8 +159,7 @@ int main(int argc, char *argv[])
 			frame->pts = stFrame.pstPack->u64PTS;										  // 获取PTS
 
 			// gst_push_data(frame); // 推送视频帧
-			RK_LOGE("rtp_udp_push\n"); // 输出信息
-			// rtp_udp_push(conn, frame->buffer, frame->size, frame->pts);
+			rtp_udp_push(&conn, frame->buffer, frame->size, frame->pts);
 
 			// 控制帧率
 			current_time = TEST_COMM_GetNowUs();
@@ -199,7 +197,7 @@ int main(int argc, char *argv[])
 	// 清理资源
 	RK_LOGE("gst push deinit.\n");
 	// gst_push_deinit();
-	rtp_udp_push_deinit(conn);
+	rtp_udp_push_deinit(&conn);
 
 	RK_MPI_SYS_Exit(); // 退出RK MPI系统
 

@@ -37,28 +37,32 @@ iw dev wlan0 info
 sleep 1
 
 #ffmpeg -re -stream_loop -1 -i 123.mp4 -vcodec copy -pkt_size 1300 -f h264 "udp://127.0.0.1:5600"
-# gst-launch-1.0 udpsrc port=5600 caps='application/x-rtp, media=(string)video, encoding-name=(string)H265' ! rtph265depay ! avdec_h265 ! autovideosink
 gst-launch-1.0 udpsrc port=5600 \
-    caps='application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H265' \
-    ! rtph265depay \
-    ! avdec_h265 \
-    ! clockoverlay valignment=bottom \
-    ! autovideosink sync=false
-
-gst-launch-1.0 -v udpsrc port=5600 \
-    buffer-size=200000 ! \
-    application/x-rtp,media=video,encoding-name=H265 ! \
+    caps='application/x-rtp, media=(string)video, encoding-name=(string)H265' ! \
     rtph265depay ! \
-    queue max-size-buffers=3 leaky=downstream ! \
     avdec_h265 ! \
-    videoconvert ! \
-    autovideosink sync=false
+    autovideosink
+# gst-launch-1.0 udpsrc port=5600 \
+#     caps='application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H265' \
+#     ! rtph265depay \
+#     ! avdec_h265 \
+#     ! clockoverlay valignment=bottom \
+#     ! autovideosink sync=false
 
-gst-launch-1.0 udpsrc port=5600 \
-    buffer-size=50000 \
-    caps='application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H265' \
-    ! rtph265depay \
-    ! queue max-size-buffers=1 leaky=downstream \
-    ! nvh265dec \
-    ! clockoverlay valignment=bottom \
-    ! autovideosink sync=false
+# gst-launch-1.0 -v udpsrc port=5600 \
+#     buffer-size=200000 ! \
+#     application/x-rtp,media=video,encoding-name=H265 ! \
+#     rtph265depay ! \
+#     queue max-size-buffers=3 leaky=downstream ! \
+#     avdec_h265 ! \
+#     videoconvert ! \
+#     autovideosink sync=false
+
+# gst-launch-1.0 udpsrc port=5600 \
+#     buffer-size=50000 \
+#     caps='application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H265' \
+#     ! rtph265depay \
+#     ! queue max-size-buffers=1 leaky=downstream \
+#     ! nvh265dec \
+#     ! clockoverlay valignment=bottom \
+#     ! autovideosink sync=false
