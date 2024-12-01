@@ -34,6 +34,17 @@ typedef struct
 int rtp_udp_push(Udp_Connection_S *conn, uint8_t *frame_data, size_t frame_size, uint32_t frame_pts);
 
 /**
+ * @brief 推送 RTP 数据通过 UDP 连接
+ *
+ * @param conn 指向 Udp_Connection_S 结构的指针，包含连接信息
+ * @param frame_data 需要发送的帧数据的指针
+ * @param frame_size 帧数据的大小
+ * @param frame_pts 帧的时间戳
+ * @return int 返回 0 表示成功，其他值表示失败
+ */
+int rtp_udp_push_new(Udp_Connection_S *conn, uint8_t *frame_data, size_t frame_size, uint32_t frame_pts);
+
+/**
  * @brief 初始化 RTP UDP 推送连接
  *
  * @param conn 指向 Udp_Connection_S 结构的指针，包含连接信息

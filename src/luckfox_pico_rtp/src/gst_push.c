@@ -2,46 +2,114 @@
 
 #include "gst_push.h"
 
-GstElement *pipeline, *appsrc, *parser, *rtp_payloader, *udpsink, *queue;
-guint64 fps_time = 0;
-GstBuffer *buffer;
-GstFlowReturn ret;
+GstElement *pipeline, *appsrc, *parser, *rtp_payloader, *udpsink, *queue; // 定义GStreamer元素的指针
+guint64 fps_time = 0;                                                     // 定义用于存储每帧持续时间的变量
+GstBuffer *buffer;                                                        // 定义GStreamer缓冲区的指针
+GstFlowReturn ret;                                                        // 定义用于存储GStreamer流处理返回值的变量
+
+/**
+ * @brief 初始化帧队列
+ *
+ * @param queue 指向 FrameQueue 结构体的指针，表示要初始化的队列
+ *
+ * 本函数初始化指定的帧队列，设置队列的前指针、后指针和计数器为0，并初始化互斥锁和条件变量以供线程同步。
+ */
+void initQueue(FrameQueue *queue)
+{
+    queue->front = 0;                           // 将前指针初始化为0，表示队列开始位置
+    queue->rear = 0;                            // 将后指针初始化为0，表示队列结束位置
+    queue->count = 0;                           // 初始化计数器为0，表示队列当前包含的元素个数
+    pthread_mutex_init(&queue->mutex, NULL);    // 初始化互斥锁，用于保护对共享资源的访问
+    pthread_cond_init(&queue->not_empty, NULL); // 初始化条件变量，表示队列非空的条件
+    pthread_cond_init(&queue->not_full, NULL);  // 初始化条件变量，表示队列非满的条件
+}
+
+/**
+ * @brief 将帧数据入队
+ *
+ * @param queue 指向 FrameQueue 结构体的指针，表示要操作的队列
+ * @param frame FrameData_S 结构体，表示要入队的帧数据
+ *
+ * 本函数将帧数据插入到队列中。如果队列已满，则会等待直到有空间可用。
+ */
+void enqueue(FrameQueue *queue, FrameData_S frame)
+{
+    pthread_mutex_lock(&queue->mutex); // 锁定互斥锁以保护对共享资源的访问
+    while (queue->count == QUEUE_SIZE) // 如果队列已满
+    {
+        pthread_cond_wait(&queue->not_full, &queue->mutex); // 等待直到队列有空间可用
+    }
+    // 深拷贝数据
+    uint8_t *new_buffer = (uint8_t *)malloc(frame.size);
+    memcpy(new_buffer, frame.buffer, frame.size);
+    frame.buffer = new_buffer; // 用新分配内存的指针更新frame.buffer
+
+    queue->frames[queue->rear] = frame;           // 将帧数据插入队列的后端
+    queue->rear = (queue->rear + 1) % QUEUE_SIZE; // 更新后指针，使用环形队列
+    queue->count++;                               // 增加队列中的帧计数
+    pthread_cond_signal(&queue->not_empty);       // 通知其他线程队列现在有数据可用
+    pthread_mutex_unlock(&queue->mutex);          // 解锁互斥锁
+}
+
+/**
+ * @brief 从队列中出队帧数据
+ *
+ * @param queue 指向 FrameQueue 结构体的指针，表示要操作的队列
+ * @return FrameData_S 返回出队的帧数据
+ *
+ * 本函数从队列中移除并返回帧数据，如果队列为空，则等待直到有帧可用。
+ */
+FrameData_S dequeue(FrameQueue *queue)
+{
+    FrameData_S frame;                 // 定义用于存储出队帧数据的变量
+    pthread_mutex_lock(&queue->mutex); // 锁定互斥锁以保护对共享资源的访问
+    while (queue->count == 0)          // 如果队列为空
+    {
+        pthread_cond_wait(&queue->not_empty, &queue->mutex); // 等待直到队列有数据
+    }
+    frame = queue->frames[queue->front];            // 从队列前端取出帧数据
+    queue->front = (queue->front + 1) % QUEUE_SIZE; // 更新前指针，使用环形队列
+    queue->count--;                                 // 减少队列中的帧计数
+    pthread_cond_signal(&queue->not_full);          // 通知其他线程队列现在有空间可用
+    pthread_mutex_unlock(&queue->mutex);            // 解锁互斥锁
+    return frame;                                   // 返回取出的帧数据
+}
 
 /**
  * @brief 获取视频帧并将其推送到管道
  *
  * @param frame 指向 FrameData_S 结构体的指针，包含视频帧数据
  *
- * 本函数创建一个GStreamer缓冲区，填充视频帧数据，设置时间戳并将缓冲区推送到appsrc。
+ * 本函数创建一个GStreamer缓冲区，填充视频帧数据，设置时间戳并将缓冲区推送到appsrc元素。
  */
 void gst_push_data(FrameData_S *frame)
 {
-    // 创建GStreamer的缓冲区
-    buffer = gst_buffer_new_allocate(NULL, frame->size, NULL);
-    if (buffer == NULL)
+    // 创建GStreamer的缓冲区，分配足够的内存以容纳帧数据
+    buffer = gst_buffer_new_allocate(NULL, frame->size, NULL); // 根据帧数据大小分配缓冲区
+    if (buffer == NULL)                                        // 检查缓冲区是否成功创建
     {
-        g_printerr("Failed to create buffer.\n");
-        return; // 确保缓冲区创建成功
+        g_printerr("Failed to create buffer.\n"); // 打印错误信息
+        return;                                   // 退出函数
     }
 
-    // 填充视频帧数据
-    gst_buffer_fill(buffer, 0, frame->buffer, frame->size);
+    // 填充视频帧数据到缓冲区
+    gst_buffer_fill(buffer, 0, frame->buffer, frame->size); // 将帧数据拷贝到新创建的缓冲区中
 
     // 设置PTS（Presentation Timestamp）
-    GST_BUFFER_PTS(buffer) = frame->pts;
+    GST_BUFFER_PTS(buffer) = frame->pts; // 设置缓冲区的时间戳为帧数据的时间戳
 
     // 设置每帧的持续时间
-    GST_BUFFER_DURATION(buffer) = fps_time;
+    GST_BUFFER_DURATION(buffer) = fps_time; // 根据帧持续时间设置缓冲区的持续时间
 
     // 推送缓冲区到appsrc
-    g_signal_emit_by_name(appsrc, "push-buffer", buffer, &ret);
-    if (ret != GST_FLOW_OK)
+    g_signal_emit_by_name(appsrc, "push-buffer", buffer, &ret); // 通过GStreamer信号将缓冲区推送到appsrc元素
+    if (ret != GST_FLOW_OK)                                     // 检查推送是否成功
     {
-        g_printerr("Error pushing buffer to appsrc: %d\n", ret);
+        g_printerr("Error pushing buffer to appsrc: %d\n", ret); // 打印错误信息
     }
 
     // 释放内存
-    gst_buffer_unref(buffer);
+    gst_buffer_unref(buffer); // 释放缓冲区占用的内存
 }
 
 /**
@@ -50,70 +118,73 @@ void gst_push_data(FrameData_S *frame)
  * @param gst_push_init_parameter 指向 GstPushInitParameter_S 结构体的指针，包含初始化参数
  * @return int 返回0表示成功，返回-1表示失败
  *
- * 本函数初始化GStreamer，创建所需的元素，链接它们并设置属性。还会根据传入的帧率计算持续时间。
+ * 本函数初始化GStreamer，创建所需的GStreamer元素，链接它们并设置属性。还会根据传入的帧率计算每帧的持续时间。
  */
 int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
 {
     // 初始化GStreamer
-    gst_init(NULL, NULL);
+    gst_init(NULL, NULL); // 初始化GStreamer库，以便使用其功能
 
     // 创建GStreamer元素
-    appsrc = gst_element_factory_make("appsrc", "source");
-    parser = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "h265parse" : "h264parse", "parser");
-    rtp_payloader = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "rtph265pay" : "rtph264pay", "rtp_payloader");
-    udpsink = gst_element_factory_make("udpsink", "udp_sink");
-    queue = gst_element_factory_make("queue", "queue");
+    appsrc = gst_element_factory_make("appsrc", "source");                                                                          // 创建应用程序源元素appsrc
+    parser = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "h265parse" : "h264parse", "parser");                 // 根据编码类型选择解析器
+    rtp_payloader = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "rtph265pay" : "rtph264pay", "rtp_payloader"); // 根据编码类型选择RTP打包元素
+    udpsink = gst_element_factory_make("udpsink", "udp_sink");                                                                      // 创建UDP接收器元素
+    queue = gst_element_factory_make("queue", "queue");                                                                             // 创建队列元素
 
-    // 创建管道
-    pipeline = gst_pipeline_new("video-pipeline");
+    // 创建一个新的GStreamer管道
+    pipeline = gst_pipeline_new("video-pipeline"); // 创建新的GStreamer管道
 
-    // 检查元素是否创建成功，失败则打印错误信息并退出
+    // 检查所有元素是否成功创建，任何失败都打印相应的错误信息并退出
     if (!pipeline || !appsrc || !parser || !rtp_payloader || !udpsink || !queue)
     {
-        g_printerr("Failed to create one or more GStreamer elements. Exiting.\n");
-        return -1;
+        g_printerr("Failed to create one or more GStreamer elements. Exiting.\n"); // 打印错误信息
+        return -1;                                                                 // 返回失败状态
     }
 
-    // 设置appsrc的属性，以支持流式数据
-    g_object_set(appsrc, "format", GST_FORMAT_TIME, NULL);
-    g_object_set(appsrc, "is-live", TRUE, NULL);
-    g_object_set(appsrc, "min-latency", 0, NULL);
-    g_object_set(appsrc, "max-latency", 0, NULL);
+    // 设置appsrc元素的属性，以支持实时数据流
+    g_object_set(appsrc, "format", GST_FORMAT_TIME, NULL); // 设置数据格式为时间格式
+    g_object_set(appsrc, "is-live", TRUE, NULL);           // 指定appsrc是一个实时数据源
+    g_object_set(appsrc, "min-latency", 0, NULL);          // 设置appsrc的最小延迟
+    g_object_set(appsrc, "max-latency", 0, NULL);          // 设置appsrc的最大延迟
 
-    // 设置udpsink的属性（目标主机和端口）
-    g_object_set(udpsink, "host", gst_push_init_parameter->host_ip, NULL);
-    g_object_set(udpsink, "port", gst_push_init_parameter->host_port, NULL);
-    g_object_set(udpsink, "sync", FALSE, NULL); // 不使用同步，立即发送
+    // 设置udpsink元素的目标主机和端口
+    g_object_set(udpsink, "host", gst_push_init_parameter->host_ip, NULL);   // 设置UDP目标主机IP
+    g_object_set(udpsink, "port", gst_push_init_parameter->host_port, NULL); // 设置UDP目标端口
+    g_object_set(udpsink, "sync", FALSE, NULL);                              // 设置为不使用同步，立即发送数据
 
     // 设置队列的属性
-    g_object_set(queue, "max-size-buffers", 1, NULL); // 最大缓存1个缓冲区
-    g_object_set(queue, "max-size-bytes", 0, NULL);   // 最大缓存字节数，0表示无限制
-    g_object_set(queue, "max-size-time", 0, NULL);    // 最大缓存时间，0表示无限制
+    g_object_set(queue, "max-size-buffers", 1, NULL); // 设置队列最大缓存1个缓冲区
+    g_object_set(queue, "max-size-bytes", 0, NULL);   // 最大缓存字节数为无限制
+    g_object_set(queue, "max-size-time", 0, NULL);    // 最大缓存时间无限制
 
-    // 将元素添加到管道
-    gst_bin_add_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL);
+    // 将所有创建的元素添加到管道中
+    gst_bin_add_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL); // 添加元素到管道
 
-    // 链接管道中的元素，如果失败则打印错误信息并退出
+    // 链接管道中的所有元素，如果链接失败则打印错误并退出
     if (!gst_element_link_many(appsrc, parser, queue, rtp_payloader, udpsink, NULL))
     {
-        g_printerr("Elements could not be linked. Exiting.\n");
-        gst_bin_remove_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL);
-        gst_object_unref(pipeline);
-        return -1;
+        g_printerr("Elements could not be linked. Exiting.\n");                                      // 打印错误信息
+        gst_bin_remove_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL); // 移除已添加的元素
+        gst_object_unref(pipeline);                                                                  // 释放管道资源
+        return -1;                                                                                   // 返回失败状态
     }
 
     // 启动管道，切换到播放状态
-    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    gst_element_set_state(pipeline, GST_STATE_PLAYING); // 将管道状态设置为播放
 
     // 计算帧持续时间
-    // if (gst_push_init_parameter->fps > 0) {
-    //     fps_time = gst_util_uint64_scale(GST_SECOND, 1, gst_push_init_parameter->fps);
-    // } else {
-    //     g_printerr("FPS must be greater than 0.\n");
-    //     fps_time = gst_util_uint64_scale(GST_SECOND, 1, 30);
-    // }
+    if (gst_push_init_parameter->fps > 0)
+    {                                                                                  // 如果帧率大于0
+        fps_time = gst_util_uint64_scale(GST_SECOND, 1, gst_push_init_parameter->fps); // 根据帧率计算每帧的持续时间
+    }
+    else
+    {
+        g_printerr("FPS must be greater than 0.\n");         // 打印错误信息
+        fps_time = gst_util_uint64_scale(GST_SECOND, 1, 30); // 默认帧率为30fps的持续时间
+    }
 
-    return 0;
+    return 0; // 返回成功状态
 }
 
 /**
@@ -121,49 +192,52 @@ int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
  *
  * @return int 返回0表示成功
  *
- * 本函数发送EOS信号，处理可能的错误消息，然后清理管道资源。
+ * 本函数发送EOS（End Of Stream）信号，处理消息，然后清理管道相关资源。
  */
 int gst_push_deinit(void)
 {
-    GstBus *bus;
-    GstMessage *msg;
+    GstBus *bus;     // 定义消息总线变量
+    GstMessage *msg; // 定义消息变量
 
-    // 发送EOS信号，指示流结束
-    g_signal_emit_by_name(appsrc, "end-of-stream", NULL);
+    // 发送EOS信号以指示流的结束
+    g_signal_emit_by_name(appsrc, "end-of-stream", NULL); // 发送结束流信号
 
-    // 处理消息
-    bus = gst_element_get_bus(pipeline);
-    msg = gst_bus_timed_pop_filtered(bus, GST_CLOCK_TIME_NONE, GST_MESSAGE_EOS | GST_MESSAGE_ERROR);
+    // 获取管道的消息总线
+    bus = gst_element_get_bus(pipeline); // 获取消息总线以便监听消息
 
-    if (msg != NULL)
+    // 从总线中提取EOS或错误消息
+    msg = gst_bus_timed_pop_filtered(bus, GST_CLOCK_TIME_NONE, GST_MESSAGE_EOS | GST_MESSAGE_ERROR); // 从总线中提取消息
+
+    // 检查是否有消息可处理
+    if (msg != NULL) // 如果成功接收到消息
     {
-        GError *err = NULL;
-        gchar *debug_info = NULL;
+        GError *err = NULL;       // 定义错误信息变量
+        gchar *debug_info = NULL; // 定义调试信息变量
 
-        switch (GST_MESSAGE_TYPE(msg))
+        switch (GST_MESSAGE_TYPE(msg)) // 根据消息类型处理相应的消息
         {
-        case GST_MESSAGE_ERROR: // 错误处理
-            gst_message_parse_error(msg, &err, &debug_info);
-            g_printerr("Error received from element %s: %s\n", GST_OBJECT_NAME(msg->src), err->message);
-            g_printerr("Debugging information: %s\n", debug_info ? debug_info : "none");
-            g_clear_error(&err);
-            g_free(debug_info);
+        case GST_MESSAGE_ERROR:                                                                          // 错误消息处理
+            gst_message_parse_error(msg, &err, &debug_info);                                             // 解析错误消息
+            g_printerr("Error received from element %s: %s\n", GST_OBJECT_NAME(msg->src), err->message); // 打印元素及错误信息
+            g_printerr("Debugging information: %s\n", debug_info ? debug_info : "none");                 // 打印调试信息
+            g_clear_error(&err);                                                                         // 清理错误信息结构
+            g_free(debug_info);                                                                          // 释放调试信息
             break;
-        case GST_MESSAGE_EOS: // 流结束处理
-            g_print("End-Of-Stream reached.\n");
+        case GST_MESSAGE_EOS:                    // EOS消息处理
+            g_print("End-Of-Stream reached.\n"); // 打印流结束信息
             break;
-        default: // 处理意外消息
-            g_printerr("Unexpected message received.\n");
+        default:                                          // 处理意外的消息类型
+            g_printerr("Unexpected message received.\n"); // 打印意外消息信息
             break;
         }
 
         gst_message_unref(msg); // 释放消息对象
     }
 
-    // 清理管道
-    gst_object_unref(bus);
-    gst_element_set_state(pipeline, GST_STATE_NULL);
-    gst_object_unref(pipeline);
+    // 释放所有资源
+    gst_object_unref(bus);                           // 释放总线资源
+    gst_element_set_state(pipeline, GST_STATE_NULL); // 将管道状态设置为NULL，以释放资源
+    gst_object_unref(pipeline);                      // 释放管道资源
 
-    return 0;
+    return 0; // 返回成功状态
 }

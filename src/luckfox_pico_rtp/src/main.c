@@ -1,21 +1,48 @@
-#include <stdio.h>
-#include <unistd.h> // usleep requires this header
-#include <time.h>   // for nanosleep
+#include <stdio.h>	// 标准输入输出库，用于printf和fprintf等函数
+#include <unistd.h> // 提供对POSIX操作系统API的访问，usleep用于线程暂停
+#include <time.h>	// 提供时间处理功能，包括nanosleep等
 
-#include "luckfox_mpi.h"
+#include <stdlib.h>	   // 提供动态内存分配、随机数生成、程序控制等功能
+#include <pthread.h>   // 提供POSIX线程的创建、管理和同步功能
+#include <string.h>	   // 提供字符串处理功能，如strcmp
+#include <semaphore.h> // 提供信号量的操作
 
-#include "gst_push.h"
-#include "rtp_udp_push.h"
+#include "luckfox_mpi.h" // 自定义头文件，可能包含与多媒体处理相关的函数
+#include "gst_push.h"	 // 自定义头文件，可能包含与GStreamer推送数据相关的函数
 
-#define DEFAULT_IP "127.0.0.1" // 默认主机IP
+// 定义一些常量，用于设置默认程序参数
+#define DEFAULT_IP "127.0.0.1" // 默认主机IP地址
 #define DEFAULT_PORT 5000	   // 默认主机端口号
 #define DEFAULT_WIDTH 1920	   // 默认视频宽度
 #define DEFAULT_HEIGHT 1080	   // 默认视频高度
 #define DEFAULT_FPS 90		   // 默认视频帧率
-#define DEFAULT_ENCONDEC 1	   // 视频编码方式0:H264, 1:H265
+#define DEFAULT_ENCONDEC 1	   // 默认视频编码方式(0为H264, 1为H265)
 
 /**
- * @brief 打印程序使用说明
+ * @brief 推送线程函数，负责处理帧数据
+ *
+ * @param arg 进程输入
+ */
+void *pushThread(void *arg)
+{
+	FrameQueue *queue = (FrameQueue *)arg; // 将参数转换为FrameQueue类型指针
+	FrameData_S frame;
+	while (true) // 无限循环
+	{
+		frame = dequeue(queue); // 从帧队列中取出帧
+		gst_push_data(&frame);	// 使用gst_push_data函数处理帧数据
+
+		// 处理完后释放frame.buffer内存
+		if (frame.buffer != NULL)
+		{
+			free(frame.buffer); // frame.buffer是动态分配的
+		}
+	}
+	return NULL; // 线程结束返回NULL
+}
+
+/**
+ * @brief 打印程序的使用说明
  *
  * @param program_name 程序名称字符串
  */
@@ -34,16 +61,16 @@ void display_usage(const char *program_name)
  */
 int main(int argc, char *argv[])
 {
-	const char *host_ip = DEFAULT_IP;	  // 主机IP
-	int host_port = DEFAULT_PORT;		  // 主机端口号
-	int video_width = DEFAULT_WIDTH;	  // 视频宽度
-	int video_height = DEFAULT_HEIGHT;	  // 视频高度
-	int video_fps = DEFAULT_FPS;		  // 视频帧率
-	int video_encodec = DEFAULT_ENCONDEC; // 视频编码方式
+	const char *host_ip = DEFAULT_IP;	  // 主机IP的初始值
+	int host_port = DEFAULT_PORT;		  // 主机端口的初始值
+	int video_width = DEFAULT_WIDTH;	  // 视频宽度的初始值
+	int video_height = DEFAULT_HEIGHT;	  // 视频高度的初始值
+	int video_fps = DEFAULT_FPS;		  // 视频帧率的初始值
+	int video_encodec = DEFAULT_ENCONDEC; // 视频编码方式的初始值
 
 	// 解析命令行参数
 	int c;
-	while ((c = getopt(argc, argv, "i:p:w:h:f:e:")) != -1)
+	while ((c = getopt(argc, argv, "i:p:w:h:f:e:")) != -1) // 逐个获取命令行选项
 	{
 		switch (c)
 		{
@@ -66,46 +93,54 @@ int main(int argc, char *argv[])
 			video_encodec = atoi(optarg); // 设置视频编码方式
 			break;
 		default:
-			display_usage(argv[0]);
-			exit(EXIT_FAILURE);
+			display_usage(argv[0]); // 若无效选项，显示使用说明
+			exit(EXIT_FAILURE);		// 退出程序
 		}
 	}
 
 	// 检查是否只有 -h 或 --help 选项
 	if (argc == 1 || (argc == 2 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)))
 	{
-		display_usage(argv[0]);
-		exit(EXIT_SUCCESS);
+		display_usage(argv[0]); // 显示使用说明
+		exit(EXIT_SUCCESS);		// 正常退出
 	}
 
 	// system("RkLunch-stop.sh"); // 停止任何现有的RkLunch服务
 
-	// rkaiq初始化
+	// rk_aiq初始化
 	RK_BOOL multi_sensor = RK_FALSE;							 // 多传感器标志
 	const char *iq_dir = "/etc/iqfiles";						 // IQ文件目录
 	rk_aiq_working_mode_t hdr_mode = RK_AIQ_WORKING_MODE_NORMAL; // 工作模式设置
-	SAMPLE_COMM_ISP_Init(0, hdr_mode, multi_sensor, iq_dir);	 // 初始化ISP
+	SAMPLE_COMM_ISP_Init(0, hdr_mode, multi_sensor, iq_dir);	 // 初始化图像信号处理（ISP）
 	SAMPLE_COMM_ISP_Run(0);										 // 运行ISP
 
 	// rkmpi初始化
-	if (RK_MPI_SYS_Init() != RK_SUCCESS)
+	if (RK_MPI_SYS_Init() != RK_SUCCESS) // 初始化多媒体处理接口
 	{
 		RK_LOGE("rk mpi sys init fail!"); // 输出错误信息
 		return -1;						  // 初始化失败，退出程序
 	}
 
 	// gst初始化
-	// GstPushInitParameter_S gst_push_init_parameter;
+	GstPushInitParameter_S gst_push_init_parameter; // 创建GStreamer推送初始化参数结构
 
-	// gst_push_init_parameter.host_ip = (char *)host_ip;												  // 推送主机IP
-	// gst_push_init_parameter.host_port = host_port;													  // 推送主机端口号
-	// gst_push_init_parameter.encodec_type = video_encodec ? EncondecType_E_H265 : EncondecType_E_H264; // 编码方式
-	// gst_push_init_parameter.fps = video_fps;														  // 视频帧率
-	// if (gst_push_init(&gst_push_init_parameter) != RK_SUCCESS)
-	// {
-	// 	RK_LOGE("gst push init fail!"); // 输出错误信息
-	// 	return -1;						// 初始化失败，退出程序
-	// }
+	// 设置GStreamer推送参数
+	gst_push_init_parameter.host_ip = (char *)host_ip;												  // 推送主机IP
+	gst_push_init_parameter.host_port = host_port;													  // 推送主机端口号
+	gst_push_init_parameter.encodec_type = video_encodec ? EncondecType_E_H265 : EncondecType_E_H264; // 编码方式选择
+	gst_push_init_parameter.fps = video_fps;														  // 视频帧率
+	if (gst_push_init(&gst_push_init_parameter) != RK_SUCCESS)										  // 初始化GStreamer推送
+	{
+		RK_LOGE("gst push init fail!"); // 输出错误信息
+		return -1;						// 初始化失败，退出程序
+	}
+
+	FrameQueue frameQueue;	// 声明帧队列
+	initQueue(&frameQueue); // 初始化队列
+
+	pthread_t thread; // 声明线程ID
+	// 创建处理线程，传递帧队列作为参数
+	pthread_create(&thread, NULL, pushThread, (void *)&frameQueue);
 
 	// vi初始化
 	vi_dev_init();							   // 初始化视频输入设备
@@ -118,69 +153,69 @@ int main(int argc, char *argv[])
 	// 绑定vi到venc
 	MPP_CHN_S stSrcChn, stvencChn; // 声明源通道和编码通道结构
 
-	stSrcChn.enModId = RK_ID_VI; // 设定视频输入模块ID
+	// 设置源通道参数
+	stSrcChn.enModId = RK_ID_VI; // 视频输入模块ID
 	stSrcChn.s32DevId = 0;		 // 设备ID
 	stSrcChn.s32ChnId = 0;		 // 通道ID
 
-	stvencChn.enModId = RK_ID_VENC; // 设定视频编码模块ID
+	// 设置编码通道参数
+	stvencChn.enModId = RK_ID_VENC; // 视频编码模块ID
 	stvencChn.s32DevId = 0;			// 设备ID
 	stvencChn.s32ChnId = 0;			// 通道ID
 
-	if (RK_MPI_SYS_Bind(&stSrcChn, &stvencChn) != RK_SUCCESS) // 绑定视频输入和视频编码器
+	// 绑定视频输入和视频编码器
+	if (RK_MPI_SYS_Bind(&stSrcChn, &stvencChn) != RK_SUCCESS)
 	{
 		RK_LOGE("bind 0 ch venc failed"); // 输出错误信息
 		return -1;						  // 绑定失败，退出程序
 	}
 
 	// 视频帧
-	VENC_STREAM_S stFrame;
+	VENC_STREAM_S stFrame;										  // 声明编码流结构
 	stFrame.pstPack = (VENC_PACK_S *)malloc(sizeof(VENC_PACK_S)); // 为编码包分配内存
 
-	FrameData_S *frame;									// 帧数据变量
-	frame = (FrameData_S *)malloc(sizeof(FrameData_S)); // 为编码包分配内存
+	FrameData_S frame; // 声明帧数据变量
 
-	uint64_t last_frame_time = 0; // 上一帧的时间
+	uint64_t last_frame_time = 0;					 // 上一帧的时间
 	uint64_t FRAME_INTERVAL = (1000000 / video_fps); // 每帧的间隔时间（微秒）
 
-	uint64_t current_time = 0;
-	uint64_t elapsed_time = 0;
+	uint64_t current_time = 0; // 当前时间变量
+	uint64_t elapsed_time = 0; // 消耗的时间变量
 
-	Udp_Connection_S conn;
-
-	rtp_udp_push_init(&conn);
-
-	while (true)
+	while (true) // 无限循环处理视频流
 	{
 		// rtsp
-		if (RK_MPI_VENC_GetStream(0, &stFrame, -1) == RK_SUCCESS) // 获取编码流
+		// 获取编码流
+		if (RK_MPI_VENC_GetStream(0, &stFrame, -1) == RK_SUCCESS)
 		{
-			frame->buffer = (uint8_t *)RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk); // 获取视频帧数据
-			frame->size = stFrame.pstPack->u32Len;										  // 获取帧大小
-			frame->pts = stFrame.pstPack->u64PTS;										  // 获取PTS
+			// 获取视频帧数据
+			frame.buffer = (uint8_t *)RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk); // 获取视频帧数据
+			frame.size = stFrame.pstPack->u32Len;										 // 获取帧大小
+			frame.pts = stFrame.pstPack->u64PTS;										 // 获取PTS
 
-			// gst_push_data(frame); // 推送视频帧
-			rtp_udp_push(&conn, frame->buffer, frame->size, frame->pts);
+			// enqueue将帧推入队列
+			enqueue(&frameQueue, frame); // 将帧推入队列
 
 			// 控制帧率
-			current_time = TEST_COMM_GetNowUs();
-			elapsed_time = current_time - last_frame_time;
-			if (elapsed_time < FRAME_INTERVAL)
+			current_time = TEST_COMM_GetNowUs();		   // 获取当前时间
+			elapsed_time = current_time - last_frame_time; // 计算消耗的时间
+			if (elapsed_time < FRAME_INTERVAL)			   // 如果消耗的时间小于每帧的间隔
 			{
 				usleep(FRAME_INTERVAL - elapsed_time); // 等待到下一个帧间隔
 			}
-			last_frame_time = current_time;
+			last_frame_time = current_time; // 更新上一帧时间
 
 			// printf("fps = %.2f\n", (float)1000000 / (float)(TEST_COMM_GetNowUs() - frame->pts)); // 输出当前帧率
 		}
 
-		// 释放获取的帧
+		// 释放编码流
 		if (RK_MPI_VENC_ReleaseStream(0, &stFrame) != RK_SUCCESS)
 		{
 			RK_LOGE("RK_MPI_VENC_ReleaseStream fail!\n"); // 输出错误信息
 		}
 	}
 
-	// 解除绑定
+	// 解除绑定输入通道和编码器
 	RK_MPI_SYS_UnBind(&stSrcChn, &stvencChn);
 
 	RK_MPI_VI_DisableChn(0, 0); // 禁用视频输入通道
@@ -192,12 +227,10 @@ int main(int argc, char *argv[])
 	RK_MPI_VENC_DestroyChn(0);	  // 销毁编码器通道
 
 	free(stFrame.pstPack); // 释放编码包内存
-	free(frame);		   // 释放帧数据包内存
 
 	// 清理资源
 	RK_LOGE("gst push deinit.\n");
-	// gst_push_deinit();
-	rtp_udp_push_deinit(&conn);
+	gst_push_deinit(); // 反初始化GStreamer推送
 
 	RK_MPI_SYS_Exit(); // 退出RK MPI系统
 
