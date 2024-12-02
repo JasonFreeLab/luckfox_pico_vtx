@@ -1,0 +1,33 @@
+#!/bin/sh
+
+case $1 in
+    start)
+        echo "Starting wlan0 setup..."
+        
+        insmod /oem/usr/ko/cfg80211.ko
+        insmod /vtx/kmod/rtl8812cu_monitor.ko rtw_tx_pwr_by_rate=0 rtw_tx_pwr_lmt_enable=0
+
+        ip link set wlan0 down
+        iw dev wlan0 set monitor otherbss
+        iw reg set BO
+        ip link set wlan0 up
+
+        iw dev wlan0 set channel 161 HT20
+        iw dev wlan0 info
+
+        #iw dev wlan0 set txpower fixed 1700
+        #cat /proc/net/rtl8812cu/wlan0/tx_power_idx
+    ;;
+    stop)
+        echo "Stoping rmmod wlan0..."
+
+        ip link set wlan0 down
+
+        rmmod cfg80211
+        rmmod rtl8812cu_monitor
+    ;;
+    *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+    ;;
+esac

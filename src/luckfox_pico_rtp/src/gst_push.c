@@ -8,88 +8,22 @@ GstBuffer *buffer;                                                        // 定
 GstFlowReturn ret;                                                        // 定义用于存储GStreamer流处理返回值的变量
 
 /**
- * @brief 初始化帧队列
- *
- * @param queue 指向 FrameQueue 结构体的指针，表示要初始化的队列
- *
- * 本函数初始化指定的帧队列，设置队列的前指针、后指针和计数器为0，并初始化互斥锁和条件变量以供线程同步。
- */
-void initQueue(FrameQueue *queue)
-{
-    queue->front = 0;                           // 将前指针初始化为0，表示队列开始位置
-    queue->rear = 0;                            // 将后指针初始化为0，表示队列结束位置
-    queue->count = 0;                           // 初始化计数器为0，表示队列当前包含的元素个数
-    pthread_mutex_init(&queue->mutex, NULL);    // 初始化互斥锁，用于保护对共享资源的访问
-    pthread_cond_init(&queue->not_empty, NULL); // 初始化条件变量，表示队列非空的条件
-    pthread_cond_init(&queue->not_full, NULL);  // 初始化条件变量，表示队列非满的条件
-}
-
-/**
- * @brief 将帧数据入队
- *
- * @param queue 指向 FrameQueue 结构体的指针，表示要操作的队列
- * @param frame FrameData_S 结构体，表示要入队的帧数据
- *
- * 本函数将帧数据插入到队列中。如果队列已满，则会等待直到有空间可用。
- */
-void enqueue(FrameQueue *queue, FrameData_S frame)
-{
-    pthread_mutex_lock(&queue->mutex); // 锁定互斥锁以保护对共享资源的访问
-    while (queue->count == QUEUE_SIZE) // 如果队列已满
-    {
-        pthread_cond_wait(&queue->not_full, &queue->mutex); // 等待直到队列有空间可用
-    }
-    // 深拷贝数据
-    uint8_t *new_buffer = (uint8_t *)malloc(frame.size);
-    memcpy(new_buffer, frame.buffer, frame.size);
-    frame.buffer = new_buffer; // 用新分配内存的指针更新frame.buffer
-
-    queue->frames[queue->rear] = frame;           // 将帧数据插入队列的后端
-    queue->rear = (queue->rear + 1) % QUEUE_SIZE; // 更新后指针，使用环形队列
-    queue->count++;                               // 增加队列中的帧计数
-    pthread_cond_signal(&queue->not_empty);       // 通知其他线程队列现在有数据可用
-    pthread_mutex_unlock(&queue->mutex);          // 解锁互斥锁
-}
-
-/**
- * @brief 从队列中出队帧数据
- *
- * @param queue 指向 FrameQueue 结构体的指针，表示要操作的队列
- * @return FrameData_S 返回出队的帧数据
- *
- * 本函数从队列中移除并返回帧数据，如果队列为空，则等待直到有帧可用。
- */
-FrameData_S dequeue(FrameQueue *queue)
-{
-    FrameData_S frame;                 // 定义用于存储出队帧数据的变量
-    pthread_mutex_lock(&queue->mutex); // 锁定互斥锁以保护对共享资源的访问
-    while (queue->count == 0)          // 如果队列为空
-    {
-        pthread_cond_wait(&queue->not_empty, &queue->mutex); // 等待直到队列有数据
-    }
-    frame = queue->frames[queue->front];            // 从队列前端取出帧数据
-    queue->front = (queue->front + 1) % QUEUE_SIZE; // 更新前指针，使用环形队列
-    queue->count--;                                 // 减少队列中的帧计数
-    pthread_cond_signal(&queue->not_full);          // 通知其他线程队列现在有空间可用
-    pthread_mutex_unlock(&queue->mutex);            // 解锁互斥锁
-    return frame;                                   // 返回取出的帧数据
-}
-
-/**
  * @brief 获取视频帧并将其推送到管道
  *
  * @param frame 指向 FrameData_S 结构体的指针，包含视频帧数据
  *
+ * @return int 返回0表示成功，返回-1表示失败
+ *
  * 本函数创建一个GStreamer缓冲区，填充视频帧数据，设置时间戳并将缓冲区推送到appsrc元素。
  */
-void gst_push_data(FrameData_S *frame)
+int gst_push_data(FrameData_S *frame)
 {
     // 创建GStreamer的缓冲区，分配足够的内存以容纳帧数据
     buffer = gst_buffer_new_allocate(NULL, frame->size, NULL); // 根据帧数据大小分配缓冲区
     if (buffer == NULL)                                        // 检查缓冲区是否成功创建
     {
         g_printerr("Failed to create buffer.\n"); // 打印错误信息
-        return;                                   // 退出函数
+        return -1;                                // 返回失败状态
     }
 
     // 填充视频帧数据到缓冲区
@@ -106,10 +40,13 @@ void gst_push_data(FrameData_S *frame)
     if (ret != GST_FLOW_OK)                                     // 检查推送是否成功
     {
         g_printerr("Error pushing buffer to appsrc: %d\n", ret); // 打印错误信息
+        return -1;                                               // 返回失败状态
     }
 
     // 释放内存
     gst_buffer_unref(buffer); // 释放缓冲区占用的内存
+
+    return 0; // 返回成功状态
 }
 
 /**
@@ -146,7 +83,7 @@ int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
     g_object_set(appsrc, "format", GST_FORMAT_TIME, NULL); // 设置数据格式为时间格式
     g_object_set(appsrc, "is-live", TRUE, NULL);           // 指定appsrc是一个实时数据源
     g_object_set(appsrc, "min-latency", 0, NULL);          // 设置appsrc的最小延迟
-    g_object_set(appsrc, "max-latency", 0, NULL);          // 设置appsrc的最大延迟
+    g_object_set(appsrc, "max-latency", 10, NULL);         // 设置appsrc的最大延迟
 
     // 设置udpsink元素的目标主机和端口
     g_object_set(udpsink, "host", gst_push_init_parameter->host_ip, NULL);   // 设置UDP目标主机IP
@@ -154,7 +91,7 @@ int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
     g_object_set(udpsink, "sync", FALSE, NULL);                              // 设置为不使用同步，立即发送数据
 
     // 设置队列的属性
-    g_object_set(queue, "max-size-buffers", 1, NULL); // 设置队列最大缓存1个缓冲区
+    g_object_set(queue, "max-size-buffers", 2, NULL); // 设置队列最大缓存2个缓冲区
     g_object_set(queue, "max-size-bytes", 0, NULL);   // 最大缓存字节数为无限制
     g_object_set(queue, "max-size-time", 0, NULL);    // 最大缓存时间无限制
 

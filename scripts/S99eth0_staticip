@@ -1,17 +1,16 @@
 #!/bin/sh
 
 case $1 in
-        start)
-                echo 'eth0 set static IP: 192.168.0.10'
+    start)
+        echo 'eth0 set static IP: 192.168.100.10'
 
-                ifconfig eth0 192.168.0.10 netmask 255.255.255.0
-                route add default gw 192.168.0.1
-                echo "nameserver 114.114.114.114" > /etc/resolv.conf
-               
-                ;;
-        stop)
-                ;;
-        *)
-                exit 1
-                ;;
+        ifconfig eth0 192.168.100.10 netmask 255.255.255.0
+        route add default gw 192.168.100.1
+    ;;
+    stop)
+    ;;
+    *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+    ;;
 esac

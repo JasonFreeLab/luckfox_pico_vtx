@@ -1,77 +1,34 @@
 #ifndef __GST_PUSH_H
 #define __GST_PUSH_H
 
-#include <stdint.h>
+#include <stdint.h>             // 引入标准整数定义，以便使用uint8_t等类型
+#include <gst/gst.h>            // 引入GStreamer核心库
+#include <gst/app/gstappsink.h> // 引入GStreamer应用程序接收器
+#include <gst/app/gstappsrc.h>  // 引入GStreamer应用程序源
 
-#include <gst/gst.h>
-#include <gst/app/gstappsink.h>
-#include <gst/app/gstappsrc.h>
-
-// 获取编码后的视频帧
+// 定义一个结构体，用于获取编码后的视频帧数据
 typedef struct
 {
-    uint8_t *buffer; // 视频帧数据
-    size_t size;     // 视频帧大小
-    guint64 pts;     // PTS（显示时间戳）
+    uint8_t *buffer; // 指向视频帧数据的指针
+    size_t size;     // 视频帧的大小
+    uint64_t pts;    // PTS（显示时间戳），用于同步
 } FrameData_S;
 
-// 定义队列的最大大小
-#define QUEUE_SIZE 10
-
-// 定义帧队列结构体
-typedef struct
-{
-    FrameData_S frames[QUEUE_SIZE]; // 储存帧的数组
-    int front;                      // 队头索引
-    int rear;                       // 队尾索引
-    int count;                      // 当前帧数
-    pthread_mutex_t mutex;          // 互斥锁
-    pthread_cond_t not_empty;       // 非空条件变量
-    pthread_cond_t not_full;        // 非满条件变量
-} FrameQueue;
-
+// 枚举类型，用于表示支持的视频编码格式
 typedef enum
 {
-    EncondecType_E_H264 = 0,
-    EncondecType_E_H265 = 1
+    EncondecType_E_H264 = 0, // H.264 编码类型
+    EncondecType_E_H265 = 1  // H.265 编码类型
 } EncondecType_E;
 
+// 定义一个结构体，用于存储GStreamer初始化参数
 typedef struct
 {
-    char *host_ip;               // 目标主机IP
-    uint16_t host_port;          // 目标主机端口号
-    EncondecType_E encodec_type; // 视频帧编码类型
-    guint64 fps;                 // FPS
+    char *host_ip;               // 目标主机IP地址
+    uint16_t host_port;          // 目标主机的端口号
+    EncondecType_E encodec_type; // 视频帧的编码类型（H.264或H.265）
+    uint64_t fps;                // 帧率（Frames Per Second）
 } GstPushInitParameter_S;
-
-/**
- * @brief 初始化帧队列
- *
- * @param queue 指向 FrameQueue 结构体的指针，表示要初始化的队列
- *
- * 本函数初始化指定的帧队列，设置队列的前指针、后指针和计数器为0，并初始化互斥锁和条件变量以供线程同步。
- */
-void initQueue(FrameQueue *queue);
-
-/**
- * @brief 将帧数据入队
- *
- * @param queue 指向 FrameQueue 结构体的指针，表示要操作的队列
- * @param frame FrameData_S 结构体，表示要入队的帧数据
- *
- * 本函数将帧数据插入到队列中。如果队列已满，则会等待直到有空间可用。
- */
-void enqueue(FrameQueue *queue, FrameData_S frame);
-
-/**
- * @brief 从队列中出队帧数据
- *
- * @param queue 指向 FrameQueue 结构体的指针，表示要操作的队列
- * @return FrameData_S 返回出队的帧数据
- *
- * 本函数从队列中移除并返回帧数据，如果队列为空，则等待直到有帧可用。
- */
-FrameData_S dequeue(FrameQueue *queue);
 
 /**
  * @brief 获取视频帧并将其推送到管道
@@ -80,7 +37,7 @@ FrameData_S dequeue(FrameQueue *queue);
  *
  * 本函数创建一个GStreamer缓冲区，填充视频帧数据，设置时间戳并将缓冲区推送到appsrc元素。
  */
-void gst_push_data(FrameData_S *frame);
+int gst_push_data(FrameData_S *frame);
 
 /**
  * @brief 初始化GStreamer管道

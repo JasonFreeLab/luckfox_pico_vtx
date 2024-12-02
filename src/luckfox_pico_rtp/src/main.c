@@ -1,11 +1,8 @@
 #include <stdio.h>	// 标准输入输出库，用于printf和fprintf等函数
+#include <stdlib.h> // 提供动态内存分配、随机数生成、程序控制等功能
+#include <string.h> // 提供字符串处理功能，如strcmp
 #include <unistd.h> // 提供对POSIX操作系统API的访问，usleep用于线程暂停
 #include <time.h>	// 提供时间处理功能，包括nanosleep等
-
-#include <stdlib.h>	   // 提供动态内存分配、随机数生成、程序控制等功能
-#include <pthread.h>   // 提供POSIX线程的创建、管理和同步功能
-#include <string.h>	   // 提供字符串处理功能，如strcmp
-#include <semaphore.h> // 提供信号量的操作
 
 #include "luckfox_mpi.h" // 自定义头文件，可能包含与多媒体处理相关的函数
 #include "gst_push.h"	 // 自定义头文件，可能包含与GStreamer推送数据相关的函数
@@ -19,37 +16,14 @@
 #define DEFAULT_ENCONDEC 1	   // 默认视频编码方式(0为H264, 1为H265)
 
 /**
- * @brief 推送线程函数，负责处理帧数据
- *
- * @param arg 进程输入
- */
-void *pushThread(void *arg)
-{
-	FrameQueue *queue = (FrameQueue *)arg; // 将参数转换为FrameQueue类型指针
-	FrameData_S frame;
-	while (true) // 无限循环
-	{
-		frame = dequeue(queue); // 从帧队列中取出帧
-		gst_push_data(&frame);	// 使用gst_push_data函数处理帧数据
-
-		// 处理完后释放frame.buffer内存
-		if (frame.buffer != NULL)
-		{
-			free(frame.buffer); // frame.buffer是动态分配的
-		}
-	}
-	return NULL; // 线程结束返回NULL
-}
-
-/**
- * @brief 打印程序的使用说明
+ * @brief 程序的使用说明
  *
  * @param program_name 程序名称字符串
  */
 void display_usage(const char *program_name)
 {
 	fprintf(stderr, "Usage: %s [-i host_ip] [-p host_port] [-w video_width] [-h video_height] [-f video_fps] [-e video_encodec(0:H264, 1:H265)]\n", program_name);
-	fprintf(stderr, "For example: ./%s -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1\n", program_name);
+	fprintf(stderr, "For example: %s -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1\n", program_name);
 }
 
 /**
@@ -129,18 +103,12 @@ int main(int argc, char *argv[])
 	gst_push_init_parameter.host_port = host_port;													  // 推送主机端口号
 	gst_push_init_parameter.encodec_type = video_encodec ? EncondecType_E_H265 : EncondecType_E_H264; // 编码方式选择
 	gst_push_init_parameter.fps = video_fps;														  // 视频帧率
+
 	if (gst_push_init(&gst_push_init_parameter) != RK_SUCCESS)										  // 初始化GStreamer推送
 	{
 		RK_LOGE("gst push init fail!"); // 输出错误信息
 		return -1;						// 初始化失败，退出程序
 	}
-
-	FrameQueue frameQueue;	// 声明帧队列
-	initQueue(&frameQueue); // 初始化队列
-
-	pthread_t thread; // 声明线程ID
-	// 创建处理线程，传递帧队列作为参数
-	pthread_create(&thread, NULL, pushThread, (void *)&frameQueue);
 
 	// vi初始化
 	vi_dev_init();							   // 初始化视频输入设备
@@ -184,7 +152,6 @@ int main(int argc, char *argv[])
 
 	while (true) // 无限循环处理视频流
 	{
-		// rtsp
 		// 获取编码流
 		if (RK_MPI_VENC_GetStream(0, &stFrame, -1) == RK_SUCCESS)
 		{
@@ -193,8 +160,7 @@ int main(int argc, char *argv[])
 			frame.size = stFrame.pstPack->u32Len;										 // 获取帧大小
 			frame.pts = stFrame.pstPack->u64PTS;										 // 获取PTS
 
-			// enqueue将帧推入队列
-			enqueue(&frameQueue, frame); // 将帧推入队列
+			gst_push_data(&frame); // 推送视频帧
 
 			// 控制帧率
 			current_time = TEST_COMM_GetNowUs();		   // 获取当前时间
