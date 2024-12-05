@@ -9,7 +9,7 @@
 
 // 定义一些常量，用于设置默认程序参数
 #define DEFAULT_IP "127.0.0.1" // 默认主机IP地址
-#define DEFAULT_PORT 5000	   // 默认主机端口号
+#define DEFAULT_PORT 5602	   // 默认主机端口号
 #define DEFAULT_WIDTH 1920	   // 默认视频宽度
 #define DEFAULT_HEIGHT 1080	   // 默认视频高度
 #define DEFAULT_FPS 90		   // 默认视频帧率
@@ -23,7 +23,7 @@
 void display_usage(const char *program_name)
 {
 	fprintf(stderr, "Usage: %s [-i host_ip] [-p host_port] [-w video_width] [-h video_height] [-f video_fps] [-e video_encodec(0:H264, 1:H265)]\n", program_name);
-	fprintf(stderr, "For example: %s -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1\n", program_name);
+	fprintf(stderr, "For example: %s -i 127.0.0.1 -p 5602 -w 1920 -h 1080 -f 90 -e 1\n", program_name);
 }
 
 /**
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
 	}
 
 	// 检查是否只有 -h 或 --help 选项
-	if (argc == 1 || (argc == 2 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)))
+	if (argc <= 1 || (argc == 2 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)) || argc > 6)
 	{
 		display_usage(argv[0]); // 显示使用说明
 		exit(EXIT_SUCCESS);		// 正常退出
