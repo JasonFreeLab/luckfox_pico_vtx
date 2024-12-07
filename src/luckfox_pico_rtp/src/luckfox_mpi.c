@@ -1,21 +1,6 @@
 #include <stdio.h>		 // 引入标准输入输出库，支持打印功能
 #include "luckfox_mpi.h" // 引入专用的库，用于操作多媒体接口
 
-#define BITRATE (2 * 1024) // 定义比特率常量，设置为 2KB/s
-
-/**
- * @brief 获取当前时间（微秒）
- *
- * @return RK_U64 返回当前时间，单位为微秒
- */
-RK_U64 TEST_COMM_GetNowUs(void)
-{
-	struct timespec time = {0, 0};										// 定义一个 timespec 结构体用于存储时间
-	clock_gettime(CLOCK_MONOTONIC, &time);								// 获取当前的单调时钟时间
-																		// 将秒转换为微秒并加上纳秒转换为微秒的结果，返回微秒级的当前时间
-	return (RK_U64)time.tv_sec * 1000000 + (RK_U64)time.tv_nsec / 1000; /* microseconds */
-}
-
 /**
  * @brief 初始化视频设备
  *
@@ -23,7 +8,6 @@ RK_U64 TEST_COMM_GetNowUs(void)
  */
 int vi_dev_init(void)
 {
-	printf("%s\n", __func__); // 打印当前函数的名称
 	int ret = 0;			  // 初始化返回值
 	int devId = 0;			  // 视频设备 ID, 此处固定为 0
 	int pipeId = devId;		  // 管道 ID 设为同设备 ID
@@ -82,22 +66,21 @@ int vi_dev_init(void)
 /**
  * @brief 初始化视频通道
  *
- * @param channelId 通道 ID，类型为 int
- * @param width 通道图像宽度，类型为 int
- * @param height 通道图像高度，类型为 int
+ * @param channelId 通道 ID，类型为 uint8_t
+ * @param width 通道图像宽度，类型为 uint16_t
+ * @param height 通道图像高度，类型为 uint16_t
  *
  * @return int 返回0表示成功，其他值表示错误码
  */
-int vi_chn_init(int channelId, int width, int height)
+int vi_chn_init(uint8_t channelId, uint16_t width, uint16_t height)
 {
-	int ret;		 // 用于存储返回值
-	int buf_cnt = 2; // 定义缓冲区数量为 2
+	int ret; // 用于存储返回值
 
 	// 视频通道初始化
 	VI_CHN_ATTR_S vi_chn_attr;					  // 定义视频通道属性结构体
 	memset(&vi_chn_attr, 0, sizeof(vi_chn_attr)); // 清零通道属性结构体
 
-	vi_chn_attr.stIspOpt.u32BufCount = buf_cnt;						// 设置缓冲区数量
+	vi_chn_attr.stIspOpt.u32BufCount = 2;							// 设置缓冲区数量 2
 	vi_chn_attr.stIspOpt.enMemoryType = VI_V4L2_MEMORY_TYPE_DMABUF; // 设置内存类型为 DMA 缓冲区
 	vi_chn_attr.stSize.u32Width = width;							// 设置图像宽度
 	vi_chn_attr.stSize.u32Height = height;							// 设置图像高度
@@ -120,38 +103,51 @@ int vi_chn_init(int channelId, int width, int height)
 /**
  * @brief 初始化视频编码通道
  *
- * @param chnId 编码通道 ID，类型为 int
- * @param width 编码图像宽度，类型为 int
- * @param height 编码图像高度，类型为 int
+ * @param chnId 编码通道 ID，类型为 uint8_t
+ * @param width 编码图像宽度，类型为 uint16_t
+ * @param height 编码图像高度，类型为 uint16_t
  * @param enType 编码类型，类型为 RK_CODEC_ID_E
+ * @param bitrate 编码比特率，类型为 uint8_t
+ * @param fps 编码帧率，类型为 uint8_t
  *
  * @return int 返回0表示成功，其他值表示错误码
  */
-int venc_init(int chnId, int width, int height, RK_CODEC_ID_E enType)
+int venc_init(uint8_t chnId, uint16_t width, uint16_t height, RK_CODEC_ID_E enType, uint8_t bitrate, uint8_t fps)
 {
-	printf("%s\n", __func__); // 打印当前函数的名称
-
-	VENC_RECV_PIC_PARAM_S stRecvParam;			 // 定义接收参数结构体
 	VENC_CHN_ATTR_S stAttr;						 // 定义编码通道属性结构体
 	memset(&stAttr, 0, sizeof(VENC_CHN_ATTR_S)); // 清零编码通道属性结构体
 
 	// 根据编码类型设置相应的属性
-	if (enType == RK_VIDEO_ID_AVC)
+	if (enType == RK_VIDEO_ID_AVC) // 如果编码类型为 H.264
 	{
-		stAttr.stRcAttr.enRcMode = VENC_RC_MODE_H264CBR; // 设置为 H.264 CBR 模式
-		stAttr.stRcAttr.stH264Cbr.u32BitRate = BITRATE;	 // 设置比特率
-		stAttr.stRcAttr.stH264Cbr.u32Gop = 1;			 // 设置 GOP 大小
+		stAttr.stRcAttr.enRcMode = VENC_RC_MODE_H264AVBR;				 // 设置为 H.264 自适应比特率模式
+		stAttr.stRcAttr.stH264Avbr.u32BitRate = bitrate * 1024;			 // 设置比特率
+		stAttr.stRcAttr.stH264Avbr.u32MaxBitRate = (bitrate + 1) * 1024; // 设置最大比特率
+		stAttr.stRcAttr.stH264Avbr.u32MinBitRate = 0;					 // 设置最小比特率为 0
+		stAttr.stRcAttr.stH264Avbr.u32StatTime = 0;						 // 设置统计时间
+		stAttr.stRcAttr.stH264Avbr.u32Gop = 1;							 // 设置 GOP 大小
+		stAttr.stRcAttr.stH264Avbr.u32SrcFrameRateNum = fps;			 // 设置源帧率
+		stAttr.stRcAttr.stH264Avbr.u32SrcFrameRateDen = 1;				 // 设置源帧率分母
+		stAttr.stRcAttr.stH264Avbr.fr32DstFrameRateNum = fps;			 // 设置目标帧率
+		stAttr.stRcAttr.stH264Avbr.fr32DstFrameRateDen = 1;				 // 设置目标帧率分母
 	}
-	else if (enType == RK_VIDEO_ID_HEVC)
+	else if (enType == RK_VIDEO_ID_HEVC) // 如果编码类型为 H.265
 	{
-		stAttr.stRcAttr.enRcMode = VENC_RC_MODE_H265CBR; // 设置为 H.265 CBR 模式
-		stAttr.stRcAttr.stH265Cbr.u32BitRate = BITRATE;	 // 设置比特率
-		stAttr.stRcAttr.stH265Cbr.u32Gop = 60;			 // 设置 GOP 大小
+		stAttr.stRcAttr.enRcMode = VENC_RC_MODE_H265AVBR;				 // 设置为 H.265 自适应比特率模式
+		stAttr.stRcAttr.stH265Avbr.u32BitRate = bitrate * 1024;			 // 设置比特率
+		stAttr.stRcAttr.stH265Avbr.u32MaxBitRate = (bitrate + 1) * 1024; // 设置最大比特率
+		stAttr.stRcAttr.stH265Avbr.u32MinBitRate = 0;					 // 设置最小比特率为 0
+		stAttr.stRcAttr.stH265Avbr.u32StatTime = 0;						 // 设置统计时间
+		stAttr.stRcAttr.stH265Avbr.u32Gop = 120;						 // 设置 GOP 大小
+		stAttr.stRcAttr.stH265Avbr.u32SrcFrameRateNum = fps;			 // 设置源帧率
+		stAttr.stRcAttr.stH265Avbr.u32SrcFrameRateDen = 1;				 // 设置源帧率分母
+		stAttr.stRcAttr.stH265Avbr.fr32DstFrameRateNum = fps;			 // 设置目标帧率
+		stAttr.stRcAttr.stH265Avbr.fr32DstFrameRateDen = 1;				 // 设置目标帧率分母
 	}
-	else if (enType == RK_VIDEO_ID_MJPEG)
+	else if (enType == RK_VIDEO_ID_MJPEG) // 如果编码类型为 MJPEG
 	{
-		stAttr.stRcAttr.enRcMode = VENC_RC_MODE_MJPEGCBR; // 设置为 MJPEG CBR 模式
-		stAttr.stRcAttr.stMjpegCbr.u32BitRate = BITRATE;  // 设置比特率
+		stAttr.stRcAttr.enRcMode = VENC_RC_MODE_MJPEGCBR;		// 设置为 MJPEG CBR 模式
+		stAttr.stRcAttr.stMjpegCbr.u32BitRate = bitrate * 1024; // 设置比特率
 	}
 
 	// 设置编码通道的其他属性
@@ -159,6 +155,8 @@ int venc_init(int chnId, int width, int height, RK_CODEC_ID_E enType)
 	stAttr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP; // 设置像素格式为 YUV420SP
 	if (enType == RK_VIDEO_ID_AVC)
 		stAttr.stVencAttr.u32Profile = H264E_PROFILE_HIGH; // 设置 H.264 的信号质量
+	else if (enType == RK_VIDEO_ID_HEVC)
+		stAttr.stVencAttr.u32Profile = H265E_PROFILE_MAIN; // 设置 H.265 的信号质量
 
 	// 设置图像尺寸和缓冲区信息
 	stAttr.stVencAttr.u32PicWidth = width;				   // 设置图片宽度
@@ -172,7 +170,9 @@ int venc_init(int chnId, int width, int height, RK_CODEC_ID_E enType)
 	// 创建编码通道
 	RK_MPI_VENC_CreateChn(chnId, &stAttr);
 
+	VENC_RECV_PIC_PARAM_S stRecvParam;						// 定义接收参数结构体
 	memset(&stRecvParam, 0, sizeof(VENC_RECV_PIC_PARAM_S)); // 清零接收参数结构体
+
 	stRecvParam.s32RecvPicNum = -1;							// 设置接收图片数量为-1（表示不限制）
 	RK_MPI_VENC_StartRecvFrame(chnId, &stRecvParam);		// 开始接收编码帧
 

@@ -7,7 +7,7 @@ start() {
     export LD_LIBRARY_PATH=/oem/usr/lib:$LD_LIBRARY_PATH
 
     # 启动服务并获取PID
-    /vtx/bin/luckfox_pico_rtp -i 127.0.0.1 -p 5602 -w 1920 -h 1080 -f 90 -e 1 &
+    /vtx/bin/luckfox_pico_rtp -i 127.0.0.1 -p 5602 -w 1920 -h 1080 -f 90 -e 1 -b 2 &
     echo $! > /var/run/luckfox_pico_rtp.pid  # 记录进程ID
 }
 
