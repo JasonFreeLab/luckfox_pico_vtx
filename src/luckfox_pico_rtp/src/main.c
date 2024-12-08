@@ -15,6 +15,7 @@
 #define DEFAULT_FPS 90		   // 默认视频帧率
 #define DEFAULT_ENCONDEC 1	   // 默认视频编码方式(0为H264, 1为H265)
 #define DEFAULT_BITRATE 2	   // 定义比特率常量，设置为 2Mbps
+#define DEFAULT_GOP 15		   // 定义GOP常量，设置为 15
 
 /**
  * @brief 获取当前时间（微秒）
@@ -36,8 +37,8 @@ RK_U64 TEST_COMM_GetNowUs(void)
  */
 void display_usage(const char *program_name)
 {
-	fprintf(stderr, "Usage: %s [-i host_ip] [-p host_port] [-w video_width] [-h video_height] [-f video_fps] [-e video_encodec(0:H264, 1:H265)] [-b video_bitrate]\n", program_name);
-	fprintf(stderr, "For example: %s -i 127.0.0.1 -p 5602 -w 1920 -h 1080 -f 90 -e 1 -b 2\n", program_name);
+	fprintf(stderr, "Usage: %s [-i host_ip] [-p host_port] [-w video_width] [-h video_height] [-f video_fps] [-e video_encodec(0:H264, 1:H265)] [-b video_bitrate] [-g video_gop]\n", program_name);
+	fprintf(stderr, "For example: %s -i 127.0.0.1 -p 5602 -w 1920 -h 1080 -f 90 -e 1 -b 2 -g 15\n", program_name);
 }
 
 /**
@@ -56,10 +57,11 @@ int main(int argc, char *argv[])
 	uint8_t video_fps = DEFAULT_FPS;		 // 视频帧率的初始值
 	bool video_encodec = DEFAULT_ENCONDEC;	 // 视频编码方式的初始值
 	uint8_t video_bitrate = DEFAULT_BITRATE; // 视频编码比特率的初始值
+	uint8_t video_gop = DEFAULT_GOP;		 // 视频图像组大小的初始值
 
 	// 解析命令行参数
 	int c;
-	while ((c = getopt(argc, argv, "i:p:w:h:f:e:b:")) != -1) // 逐个获取命令行选项
+	while ((c = getopt(argc, argv, "i:p:w:h:f:e:b:g:")) != -1) // 逐个获取命令行选项
 	{
 		switch (c)
 		{
@@ -83,6 +85,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'b':
 			video_bitrate = atoi(optarg); // 设置视频编码比特率
+			break;
+		case 'g':
+			video_gop = atoi(optarg); // 设置视频图像组大小
 			break;
 		default:
 			display_usage(argv[0]); // 若无效选项，显示使用说明
@@ -132,17 +137,24 @@ int main(int argc, char *argv[])
 	vi_dev_init();							   // 初始化视频输入设备
 	vi_chn_init(0, video_width, video_height); // 初始化视频输入通道
 
+	// vpss init
+	// vpss_init(0, video_width, video_height);
+
 	// venc初始化
-	RK_CODEC_ID_E enCodecType = video_encodec ? RK_VIDEO_ID_HEVC : RK_VIDEO_ID_AVC; // 设置编码类型
-	venc_init(0, video_width, video_height, enCodecType, video_bitrate, video_fps); // 初始化视频编码器
+	RK_CODEC_ID_E enCodecType = video_encodec ? RK_VIDEO_ID_HEVC : RK_VIDEO_ID_AVC;			   // 设置编码类型
+	venc_init(0, video_width, video_height, enCodecType, video_bitrate, video_fps, video_gop); // 初始化视频编码器
 
 	// 绑定vi到venc
-	MPP_CHN_S stSrcChn, stvencChn; // 声明源通道和编码通道结构
+	MPP_CHN_S stSrcChn, stvpssChn, stvencChn; // 声明源通道和编码通道结构
 
 	// 设置源通道参数
 	stSrcChn.enModId = RK_ID_VI; // 视频输入模块ID
 	stSrcChn.s32DevId = 0;		 // 设备ID
 	stSrcChn.s32ChnId = 0;		 // 通道ID
+
+	// stvpssChn.enModId = RK_ID_VPSS;
+	// stvpssChn.s32DevId = 0;
+	// stvpssChn.s32ChnId = 0;
 
 	// 设置编码通道参数
 	stvencChn.enModId = RK_ID_VENC; // 视频编码模块ID
@@ -150,10 +162,16 @@ int main(int argc, char *argv[])
 	stvencChn.s32ChnId = 0;			// 通道ID
 
 	// 绑定视频输入和视频编码器
+	// if (RK_MPI_SYS_Bind(&stSrcChn, &stvpssChn) != RK_SUCCESS)
+	// {
+	// 	RK_LOGE("bind vi0 vpss0 failed"); // 输出错误信息
+	// 	return -1;						  // 绑定失败，退出程序
+	// }
+	// 绑定视频输入和视频编码器
 	if (RK_MPI_SYS_Bind(&stSrcChn, &stvencChn) != RK_SUCCESS)
 	{
-		RK_LOGE("bind 0 ch venc failed"); // 输出错误信息
-		return -1;						  // 绑定失败，退出程序
+		RK_LOGE("bind vpss0 venc0 failed"); // 输出错误信息
+		return -1;							// 绑定失败，退出程序
 	}
 
 	// 视频帧
