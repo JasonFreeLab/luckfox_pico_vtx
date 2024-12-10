@@ -4,13 +4,6 @@
 #include "sample_comm.h"
 
 /**
- * @brief 获取当前时间（微秒）
- *
- * @return RK_U64 返回当前时间，单位为微秒
- */
-RK_U64 TEST_COMM_GetNowUs(void);
-
-/**
  * @brief 初始化视频设备
  *
  * @return int 返回0表示成功，-1表示失败
@@ -20,24 +13,38 @@ int vi_dev_init(void);
 /**
  * @brief 初始化视频通道
  *
- * @param channelId 通道 ID，类型为 int
- * @param width 通道图像宽度，类型为 int
- * @param height 通道图像高度，类型为 int
+ * @param channelId 通道 ID，类型为 uint8_t
+ * @param width 通道图像宽度，类型为 uint16_t
+ * @param height 通道图像高度，类型为 uint16_t
  *
  * @return int 返回0表示成功，其他值表示错误码
  */
-int vi_chn_init(int channelId, int width, int height);
+int vi_chn_init(uint8_t channelId, uint16_t width, uint16_t height);
+
+/**
+ * @brief 初始化 VPSS（视频前端支撑子系统）组
+ *
+ * @param VpssChn VPSS 通道，类型为 uint8_t
+ * @param width 图像宽度，类型为 uint16_t
+ * @param height 图像高度，类型为 uint16_t
+ *
+ * @return int 返回0表示成功，其他值表示错误码
+ */
+int vpss_init(uint8_t VpssChn, uint16_t width, uint16_t height);
 
 /**
  * @brief 初始化视频编码通道
  *
- * @param chnId 编码通道 ID，类型为 int
- * @param width 编码图像宽度，类型为 int
- * @param height 编码图像高度，类型为 int
+ * @param chnId 编码通道 ID，类型为 uint8_t
+ * @param width 编码图像宽度，类型为 uint16_t
+ * @param height 编码图像高度，类型为 uint16_t
  * @param enType 编码类型，类型为 RK_CODEC_ID_E
+ * @param bitrate 编码比特率，类型为 uint8_t
+ * @param fps 编码帧率，类型为 uint8_t
+ * @param gop 图像组大小，类型为 uint8_t
  *
  * @return int 返回0表示成功，其他值表示错误码
  */
-int venc_init(int chnId, int width, int height, RK_CODEC_ID_E enType);
+int venc_init(uint8_t chnId, uint16_t width, uint16_t height, RK_CODEC_ID_E enType, uint8_t bitrate, uint8_t fps, uint8_t gop);
 
 #endif

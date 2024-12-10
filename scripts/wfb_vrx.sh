@@ -30,3 +30,5 @@ gst-launch-1.0 udpsrc port=5600 \
     rtph265depay ! \
     avdec_h265 ! \
     autovideosink
+
+gst-launch-1.0 rtspsrc location=rtsp://192.168.100.10/live/0 ! decodebin ! autovideosink

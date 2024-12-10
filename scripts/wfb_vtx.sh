@@ -19,4 +19,4 @@ iw dev wlan0 info
 #cat /proc/net/rtl8812cu/wlan0/tx_power_idx
 
 /usr/bin/wfb_tx -p 0 -u 5602 -K /vtx/wfb_ng/drone.key wlan0 &
-/vtx/bin/luckfox_pico_rtp -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1
+/vtx/bin/luckfox_pico_rtp -i 127.0.0.1 -p 5000 -w 1920 -h 1080 -f 90 -e 1 -b 2
