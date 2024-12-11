@@ -2,10 +2,11 @@
 
 #include "gst_push.h"
 
-GstElement *pipeline, *appsrc, *parser, *rtp_payloader, *udpsink, *queue; // 定义GStreamer元素的指针
-guint64 fps_time = 0;                                                     // 定义用于存储每帧持续时间的变量
-GstBuffer *buffer;                                                        // 定义GStreamer缓冲区的指针
-GstFlowReturn ret;                                                        // 定义用于存储GStreamer流处理返回值的变量
+// GstElement *pipeline, *appsrc, *parser, *rtp_payloader, *udpsink, *queue; // 定义GStreamer元素的指针
+GstElement *pipeline, *appsrc, *parser, *rtp_payloader, *udpsink; // 定义GStreamer元素的指针
+guint64 fps_time = 0;                                             // 定义用于存储每帧持续时间的变量
+GstBuffer *buffer;                                                // 定义GStreamer缓冲区的指针
+GstFlowReturn ret;                                                // 定义用于存储GStreamer流处理返回值的变量
 
 /**
  * @brief 获取视频帧并将其推送到管道
@@ -67,23 +68,29 @@ int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
     parser = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "h265parse" : "h264parse", "parser");                 // 根据编码类型选择解析器
     rtp_payloader = gst_element_factory_make(gst_push_init_parameter->encodec_type ? "rtph265pay" : "rtph264pay", "rtp_payloader"); // 根据编码类型选择RTP打包元素
     udpsink = gst_element_factory_make("udpsink", "udp_sink");                                                                      // 创建UDP接收器元素
-    queue = gst_element_factory_make("queue", "queue");                                                                             // 创建队列元素
+    // queue = gst_element_factory_make("queue", "queue");                                                                             // 创建队列元素
 
     // 创建一个新的GStreamer管道
     pipeline = gst_pipeline_new("video-pipeline"); // 创建新的GStreamer管道
 
     // 检查所有元素是否成功创建，任何失败都打印相应的错误信息并退出
-    if (!pipeline || !appsrc || !parser || !rtp_payloader || !udpsink || !queue)
+    // if (!pipeline || !appsrc || !parser || !rtp_payloader || !udpsink || !queue)
+    if (!pipeline || !appsrc || !parser || !rtp_payloader || !udpsink)
     {
         g_printerr("Failed to create one or more GStreamer elements. Exiting.\n"); // 打印错误信息
         return -1;                                                                 // 返回失败状态
     }
 
     // 设置appsrc元素的属性，以支持实时数据流
+    GstCaps *caps = gst_caps_new_simple(gst_push_init_parameter->encodec_type ? "video/x-h265" : "video/x-h264", 
+                                        "stream-format", G_TYPE_STRING, "byte-stream", 
+                                        NULL);
+    g_object_set(appsrc, "caps", caps, NULL);
+    gst_caps_unref(caps);
     g_object_set(appsrc, "format", GST_FORMAT_TIME, NULL); // 设置数据格式为时间格式
     g_object_set(appsrc, "is-live", TRUE, NULL);           // 指定appsrc是一个实时数据源
     g_object_set(appsrc, "min-latency", 0, NULL);          // 设置appsrc的最小延迟
-    g_object_set(appsrc, "max-latency", 10, NULL);         // 设置appsrc的最大延迟
+    g_object_set(appsrc, "max-latency", 0, NULL);          // 设置appsrc的最大延迟
 
     // 设置udpsink元素的目标主机和端口
     g_object_set(udpsink, "host", gst_push_init_parameter->host_ip, NULL);   // 设置UDP目标主机IP
@@ -91,20 +98,23 @@ int gst_push_init(GstPushInitParameter_S *gst_push_init_parameter)
     g_object_set(udpsink, "sync", FALSE, NULL);                              // 设置为不使用同步，立即发送数据
 
     // 设置队列的属性
-    g_object_set(queue, "max-size-buffers", 2, NULL); // 设置队列最大缓存2个缓冲区
-    g_object_set(queue, "max-size-bytes", 0, NULL);   // 最大缓存字节数为无限制
-    g_object_set(queue, "max-size-time", 0, NULL);    // 最大缓存时间无限制
+    // g_object_set(queue, "max-size-buffers", 1, NULL); // 设置队列最大缓存1个缓冲区
+    // g_object_set(queue, "max-size-bytes", 0, NULL);   // 最大缓存字节数为无限制
+    // g_object_set(queue, "max-size-time", 0, NULL);    // 最大缓存时间无限制
 
     // 将所有创建的元素添加到管道中
-    gst_bin_add_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL); // 添加元素到管道
+    // gst_bin_add_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL); // 添加元素到管道
+    gst_bin_add_many(GST_BIN(pipeline), appsrc, parser, rtp_payloader, udpsink, NULL); // 添加元素到管道
 
     // 链接管道中的所有元素，如果链接失败则打印错误并退出
-    if (!gst_element_link_many(appsrc, parser, queue, rtp_payloader, udpsink, NULL))
+    // if (!gst_element_link_many(appsrc, parser, queue, rtp_payloader, udpsink, NULL))
+    if (!gst_element_link_many(appsrc, parser, rtp_payloader, udpsink, NULL))
     {
-        g_printerr("Elements could not be linked. Exiting.\n");                                      // 打印错误信息
-        gst_bin_remove_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL); // 移除已添加的元素
-        gst_object_unref(pipeline);                                                                  // 释放管道资源
-        return -1;                                                                                   // 返回失败状态
+        g_printerr("Elements could not be linked. Exiting.\n"); // 打印错误信息
+        // gst_bin_remove_many(GST_BIN(pipeline), appsrc, parser, queue, rtp_payloader, udpsink, NULL); // 移除已添加的元素
+        gst_bin_remove_many(GST_BIN(pipeline), appsrc, parser, rtp_payloader, udpsink, NULL); // 移除已添加的元素
+        gst_object_unref(pipeline);                                                           // 释放管道资源
+        return -1;                                                                            // 返回失败状态
     }
 
     // 启动管道，切换到播放状态

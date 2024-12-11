@@ -14,8 +14,8 @@ LOCAL_PREFIX :=  $(BUILD_DIR)/_install
 
 CXX_DEFINES := -DOPENCV_DISABLE_THREAD_SUPPORT=1 -DRV1106_1103 -O3
 CXX_INCLUDES := -I$(CURDIR)/../include \
-	-I$(LUCKFOX_MEDIA_PATH)/samples/common \
-	-I$(LUCKFOX_MEDIA_PATH)/samples/common/isp3.x \
+	-I$(LUCKFOX_MEDIA_PATH)/samples/example/common \
+	-I$(LUCKFOX_MEDIA_PATH)/samples/example/common/isp3.x \
 	-I$(LUCKFOX_MEDIA_PATH)/out/include \
 	-I$(LUCKFOX_MEDIA_PATH)/out/include/rkaiq \
 	-I$(LUCKFOX_MEDIA_PATH)/out/include/rkaiq/algos \
@@ -31,6 +31,7 @@ CXX_INCLUDES := -I$(CURDIR)/../include \
 
 CXX_FLAGS := $(CFLAGS)
 _LDFLAGS := $(LDFLAGS) -L$(LUCKFOX_MEDIA_PATH)/out/lib \
+	-L$(LUCKFOX_MEDIA_PATH)/samples/example/common/lib \
 	-L$(BUILDROOT_SYSROOT)/usr/lib \
 	-L$(BUILDROOT_SYSROOT)/usr/lib/gstreamer-1.0 \
 	-L$(BUILDROOT_SYSROOT)/usr/lib/glib-2.0 \

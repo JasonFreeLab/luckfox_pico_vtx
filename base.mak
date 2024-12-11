@@ -9,8 +9,8 @@ CROSS_COMPILE := $(HOST)-
 CMAKE_C_COMPILER := $(CROSS_COMPILE)gcc
 CMAKE_CXX_COMPILER := $(CROSS_COMPILE)g++
 
-# KDIR := $(LUCKFOX_SDK_PATH)/sysdrv/source/objs_kernel
-KDIR := $(LUCKFOX_SDK_PATH)/sysdrv/source/kernel
+KDIR := $(LUCKFOX_SDK_PATH)/sysdrv/source/objs_kernel
+# KDIR := $(LUCKFOX_SDK_PATH)/sysdrv/source/kernel
 
 BUILDROOT_SYSROOT := $(LUCKFOX_SDK_PATH)/sysdrv/source/buildroot/buildroot-2023.02.6/output/host/arm-buildroot-linux-uclibcgnueabihf/sysroot
 LUCKFOX_MEDIA_PATH := $(LUCKFOX_SDK_PATH)/media
