@@ -18,22 +18,26 @@ Window win;
  */
 void initGst2(void)
 {
-    // 定义GStreamer元素，包括管道和各个组件
-    GstElement *gst_pipeline;
-    GstElement *gst_src;
-    GstElement *gst_depayloader;
-    GstElement *gst_parser;
-    GstElement *gst_decoder;
-    GstElement *gst_conv;
-    GstElement *gst_sink;
+    // 创建GStreamer元素，包括管道和各个组件的指针
+    GstElement *gst_pipeline;    // GStreamer管道，包含所有处理元素
+    GstElement *gst_src;         // UDP源元素
+    GstElement *gst_depayloader; // RTP解封装器
+    GstElement *gst_parser;      // H265解析器
+    GstElement *gst_decoder;     // H265解码器
+    GstElement *gst_conv;        // 视频转换元素
+    GstElement *gst_sink;        // 视频输出元素
+    GstElement *queue;           // 用于缓冲帧的队列元素
 
-    // 创建一个新的GStreamer管道，用于后续的元素连接
+    // 创建一个新的GStreamer管道
     gst_pipeline = gst_pipeline_new("xvoverlay");
 
     // 创建UDP源，监听127.0.0.1:5600
     gst_src = gst_element_factory_make("udpsrc", "source");
     g_object_set(G_OBJECT(gst_src), "port", 5600, NULL); // 设置UDP端口为5600
     g_object_set(G_OBJECT(gst_src), "caps", gst_caps_new_simple("application/x-rtp", "media", G_TYPE_STRING, "video", "encoding-name", G_TYPE_STRING, "H265", NULL), NULL);
+    // 调整缓冲区大小和延迟以提高实时性能
+    g_object_set(G_OBJECT(gst_src), "buffer-size", 200000, NULL); // 示例缓冲区大小
+    g_object_set(G_OBJECT(gst_src), "latency", 0, NULL);          // 设置延迟为0以降低延迟
 
     // 创建RTP解封装器以从RTP包中提取H265数据
     gst_depayloader = gst_element_factory_make("rtph265depay", "depayloader");
@@ -48,13 +52,14 @@ void initGst2(void)
     gst_conv = gst_element_factory_make("videoconvert", NULL);
 
     // 创建视频显示元素，使用X11显示接收视频
-    gst_sink = gst_element_factory_make("xvimagesink", "sink");
+    gst_sink = gst_element_factory_make("glimagesink", "sink"); // 使用glimagesink获取更好的性能
+    queue = gst_element_factory_make("queue", "queue");         // 添加一个队列用于缓冲帧
 
     // 将所有元素添加到管道中
-    gst_bin_add_many(GST_BIN(gst_pipeline), gst_src, gst_depayloader, gst_parser, gst_decoder, gst_conv, gst_sink, NULL);
+    gst_bin_add_many(GST_BIN(gst_pipeline), gst_src, gst_depayloader, gst_parser, gst_decoder, queue, gst_conv, gst_sink, NULL);
 
     // 连接所有元素，形成处理链路
-    if (gst_element_link_many(gst_src, gst_depayloader, gst_parser, gst_decoder, gst_conv, gst_sink, NULL) == 0)
+    if (gst_element_link_many(gst_src, gst_depayloader, gst_parser, gst_decoder, queue, gst_conv, gst_sink, NULL) == 0)
     {
         printf("gst_element_link_many error!\r\n"); // 如果链接失败，打印错误信息
     }
@@ -64,7 +69,7 @@ void initGst2(void)
 
     // 改变管道的状态为PLAYING，开始播放
     GstStateChangeReturn sret = gst_element_set_state(gst_pipeline, GST_STATE_PLAYING);
-    printf("set gst playing. sret=%d\r\n", sret);
+    printf("set gst playing. sret=%d\r\n", sret); // 打印状态改变的返回值
 }
 
 /**
@@ -91,7 +96,7 @@ int main(int argc, char *argv[])
     }
 
     // 获取默认屏幕的信息
-    int screenNumber = DefaultScreen(dsp);
+    int screenNumber = DefaultScreen(dsp);               // 获取默认屏幕编号
     unsigned long white = WhitePixel(dsp, screenNumber); // 获取白色像素值
     unsigned long black = BlackPixel(dsp, screenNumber); // 获取黑色像素值
 
@@ -124,8 +129,8 @@ int main(int argc, char *argv[])
     } while (evt.type != ButtonRelease);
 
     // 销毁窗口和关闭显示
-    XDestroyWindow(dsp, win);
-    XCloseDisplay(dsp);
+    XDestroyWindow(dsp, win); // 销毁创建的窗口
+    XCloseDisplay(dsp);       // 关闭与X服务器的连接
 
     return 0; // 返回0表示程序成功结束
 }
