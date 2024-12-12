@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
 
 			gst_push_data(&frame); // 推送视频帧
 
-			printf("fps = %.2f\n", (float)1000000 / (float)(TEST_COMM_GetNowUs() - frame->pts)); // 输出当前帧率
+			// printf("fps = %.2f\n", (float)1000000 / (float)(TEST_COMM_GetNowUs() - frame.pts)); // 输出当前帧率
 		}
 
 		// 释放编码流

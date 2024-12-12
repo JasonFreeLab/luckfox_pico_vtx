@@ -86,7 +86,7 @@ int vi_chn_init(uint8_t channelId, uint16_t width, uint16_t height)
 	vi_chn_attr.stSize.u32Height = height;							// 设置图像高度
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;					// 设置像素格式为 YUV420SP
 	vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;				// 设置压缩模式为无压缩
-	vi_chn_attr.u32Depth = 2;										// 设置深度为 2
+	vi_chn_attr.u32Depth = 1;										// 设置深度为 1  //0, get fail; 1 - u32BufCount, can get, if bind to other device, must be < u32BufCount
 
 	// 设置通道属性并启用通道
 	ret = RK_MPI_VI_SetChnAttr(0, channelId, &vi_chn_attr); // 设置通道属性
