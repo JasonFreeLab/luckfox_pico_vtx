@@ -9,8 +9,8 @@ cd -
 cp -rv /vtx/wfb_ng/etc /
 cp -rv /vtx/wfb_ng/usr /
 
-cp -rv /vtx/wfb_ng/home/jc/miniconda3/envs/luckfox/bin /usr
-cp -rv /vtx/wfb_ng/home/jc/miniconda3/envs/luckfox/lib /usr
+cp -rv /vtx/wfb_ng/home/jason/miniconda3/envs/luckfox/bin /usr
+cp -rv /vtx/wfb_ng/home/jason/miniconda3/envs/luckfox/lib /usr
 
 rm -rf /vtx/wfb_ng/etc /vtx/wfb_ng/home /vtx/wfb_ng/lib /vtx/wfb_ng/usr
 

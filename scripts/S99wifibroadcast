@@ -1,18 +1,15 @@
 #!/bin/sh
 
-# 启用脚本的环境变量文件
 . /etc/default/wifibroadcast
 WFB_PROFILE="drone"
 
-# 定义启动函数
 start() {
     echo "Starting wifibroadcast profile ${WFB_PROFILE}..."
 
     airmon-ng check kill
     
-    # 启动服务并获取PID
     python3 /usr/bin/wfb-server ${WFB_PROFILE} ${WFB_NICS} &
-    echo $! > /var/run/wifibroadcast.pid  # 记录进程ID
+    echo $! > /var/run/wifibroadcast.pid
 }
 
 stop() {
@@ -32,7 +29,6 @@ restart() {
     start
 }
 
-# 处理传入的参数
 case $1 in
     start)
         start
