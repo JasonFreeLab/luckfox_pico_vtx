@@ -102,8 +102,6 @@ int main(int argc, char *argv[])
 		exit(EXIT_SUCCESS);		// 正常退出
 	}
 
-	// system("RkLunch-stop.sh"); // 停止任何现有的RkLunch服务
-
 	// rk_aiq初始化
 	RK_BOOL multi_sensor = RK_FALSE;							 // 多传感器标志
 	const char *iq_dir = "/etc/iqfiles";						 // IQ文件目录
@@ -137,41 +135,28 @@ int main(int argc, char *argv[])
 	vi_dev_init();							   // 初始化视频输入设备
 	vi_chn_init(0, video_width, video_height); // 初始化视频输入通道
 
-	// vpss init
-	// vpss_init(0, video_width, video_height);
-
 	// venc初始化
 	RK_CODEC_ID_E enCodecType = video_encodec ? RK_VIDEO_ID_HEVC : RK_VIDEO_ID_AVC;			   // 设置编码类型
 	venc_init(0, video_width, video_height, enCodecType, video_bitrate, video_fps, video_gop); // 初始化视频编码器
 
 	// 绑定vi到venc
-	MPP_CHN_S stSrcChn, stvpssChn, stvencChn; // 声明源通道和编码通道结构
+	MPP_CHN_S stSrcChn, stvencChn; // 声明源通道和编码通道结构
 
 	// 设置源通道参数
 	stSrcChn.enModId = RK_ID_VI; // 视频输入模块ID
 	stSrcChn.s32DevId = 0;		 // 设备ID
 	stSrcChn.s32ChnId = 0;		 // 通道ID
 
-	// stvpssChn.enModId = RK_ID_VPSS;
-	// stvpssChn.s32DevId = 0;
-	// stvpssChn.s32ChnId = 0;
-
 	// 设置编码通道参数
 	stvencChn.enModId = RK_ID_VENC; // 视频编码模块ID
 	stvencChn.s32DevId = 0;			// 设备ID
 	stvencChn.s32ChnId = 0;			// 通道ID
 
-	// 绑定视频输入和视频编码器
-	// if (RK_MPI_SYS_Bind(&stSrcChn, &stvpssChn) != RK_SUCCESS)
-	// {
-	// 	RK_LOGE("bind vi0 vpss0 failed"); // 输出错误信息
-	// 	return -1;						  // 绑定失败，退出程序
-	// }
-	// 绑定视频输入和视频编码器
+	// 绑定视频输入到视频编码器
 	if (RK_MPI_SYS_Bind(&stSrcChn, &stvencChn) != RK_SUCCESS)
 	{
-		RK_LOGE("bind vpss0 venc0 failed"); // 输出错误信息
-		return -1;							// 绑定失败，退出程序
+		RK_LOGE("bind vi0 to venc0 failed"); // 输出错误信息
+		return -1;							 // 绑定失败，退出程序
 	}
 
 	// 视频帧
